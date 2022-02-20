@@ -43,14 +43,20 @@ def dilate_binary(binary, x, y):
 def read_morphology(cap):  # read cap and morphological operation to get led binary image.
     ret, frame = cap.read()
 
+    global targetColor #
+
     """
     Method1: subtract the opposite color's channel with the desired color channel(For Red:R-B or For Blue:B-R)
     """
     B, G, R = cv2.split(frame)  # Split channels
-    redHighLight = cv2.subtract(R, B) * 2  # subtract Red channel with Blue Channel
-    redBlur = cv2.blur(redHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
-    ret, mask = cv2.threshold(redBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
-
+    if targetColor: # Red = 1
+        redHighLight = cv2.subtract(R, B) * 2  # subtract Red channel with Blue Channel
+        redBlur = cv2.blur(redHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
+        ret, mask = cv2.threshold(redBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
+    else:
+        blueHighLight = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
+        blueBlur = cv2.blur(blueHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
+        ret, mask = cv2.threshold(blueBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
     """
     Method2: try thresholds on differnet channels seperatedly(higher threshold on desired color channel; lower
     threshold on other channels)
@@ -64,7 +70,7 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
     combine Method 1 and 2 together; needed or not?
     """
     maskRBG = cv2.bitwise_and(maskRG, mask3)
-    combination = cv2.bitwise_and(maskRBG, redBlur)
+    combination = cv2.bitwise_and(maskRBG, mask)
 
     """
     Show difference between Method 1 and Method 2
@@ -100,8 +106,7 @@ def find_contours(binary, frame):  # find contours and main screening section
     second_data2 = []
     vertices = [] # for future use
 
-    c = 0
-    d = 0
+
     if length > 0:
         # collect info for every contour's rectangle
         for i, contour in enumerate(contours):
@@ -110,7 +115,7 @@ def find_contours(binary, frame):  # find contours and main screening section
             area = cv2.contourArea(contour)
 
             # area smaller than certain value will not be considered as armor board
-            if area < 50:
+            if area < 5:
                 continue
 
             rect = cv2.minAreaRect(contour)
@@ -161,7 +166,7 @@ def find_contours(binary, frame):  # find contours and main screening section
                 first_data.append(data_dict)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
-                print(z)
+                #print(z)
 
         for i in range(len(first_data)):
 
@@ -203,7 +208,7 @@ def find_contours(binary, frame):  # find contours and main screening section
                 rectangle_x2 = int(second_data2[i]["x3"])
                 rectangle_y2 = int(second_data2[i]["y3"])
 
-                if abs(rectangle_y1 - rectangle_y2) <= (6 / 2) * (abs(rectangle_x1 - rectangle_x2)):
+                if abs(rectangle_y1 - rectangle_y2) <= 3 * (abs(rectangle_x1 - rectangle_x2)):
 
                     point1_1x = second_data1[i]["x1"]
                     point1_1y = second_data1[i]["y1"]
@@ -213,6 +218,7 @@ def find_contours(binary, frame):  # find contours and main screening section
                     point1_3y = second_data1[i]["y3"]
                     point1_4x = second_data1[i]["x4"]
                     point1_4y = second_data1[i]["y4"]
+                    point1_z  = second_data1[i]["z"]
 
                     point2_1x = second_data2[i]["x1"]
                     point2_1y = second_data2[i]["y1"]
@@ -222,21 +228,16 @@ def find_contours(binary, frame):  # find contours and main screening section
                     point2_3y = second_data2[i]["y3"]
                     point2_4x = second_data2[i]["x4"]
                     point2_4y = second_data2[i]["y4"]
+                    point2_z  = second_data2[i]["z"]
+
+
 
                     if point1_1x > point2_1x:
                         cv2.rectangle(frame, (point2_2x, point2_2y), (point1_4x, point1_4y), (255, 255, 255), 2)
 
                     else:
-                        point1_1x, point2_1x = point2_1x, point1_1x
-                        point1_2x, point2_2x = point2_2x, point1_2x
-                        point1_3x, point2_3x = point2_3x, point1_3x
-                        point1_4x, point2_4x = point2_4x, point1_4x
+                        cv2.rectangle(frame, (point1_2x, point1_2y), (point2_4x, point2_4y), (255, 255, 255), 2)
 
-                        point1_1y, point2_1y = point2_1y, point1_1y
-                        point1_2y, point2_2y = point2_2y, point1_2y
-                        point1_3y, point2_3y = point2_3y, point1_3y
-                        point1_4y, point2_4y = point2_4y, point1_4y
-                        cv2.rectangle(frame, (point2_1x, point2_1y), (point1_3x, point1_3y), (255, 255, 0), 2)
 
                     cv2.putText(frame, "target1:", (rectangle_x2, rectangle_y2 - 5), cv2.FONT_HERSHEY_SIMPLEX,
                                 0.5, [255, 255, 255])
@@ -248,17 +249,27 @@ def find_contours(binary, frame):  # find contours and main screening section
 
 
         else:
-            print("---not find---")
-
-            # dataList_c.clear()
+            print("Looking for Targets...")
 
 
-# init camera as cap
-cap = cv2.VideoCapture(2)
-cap.set(15, -10)  # EXPOSURE -10 ; threshold's version exposure -8
-creatTrackbar()
-while True:
-    binary, frame = read_morphology(cap)  # changed read_morphology()'s output from binary to mask
-    find_contours(binary, frame)
-    cv2.imshow("original", frame)
-    cv2.waitKey(1)
+
+def main():
+
+
+    creatTrackbar()
+    while True:
+        binary, frame = read_morphology(cap)  # changed read_morphology()'s output from binary to mask
+        find_contours(binary, frame)
+        cv2.imshow("original", frame)
+        cv2.waitKey(1)
+
+if __name__ == "__main__":
+
+    """Declare your desired target color here"""
+    targetColor = 1  # Red = 1 ; Blue = 0
+
+    """init camera as cap, modify camera parameters at here"""
+    cap = cv2.VideoCapture(2) # the number here depends on your device's camera, usually default with 0
+    cap.set(15, -10)  # EXPOSURE -10 ; threshold's version exposure -8
+
+    main()
