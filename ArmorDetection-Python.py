@@ -239,7 +239,7 @@ def find_contours(binary, frame):  # find contours and main screening section
                         cv2.rectangle(frame, (point1_2x, point1_2y), (point2_4x, point2_4y), (255, 255, 255), 2)
 
 
-                    cv2.putText(frame, "target1:", (rectangle_x2, rectangle_y2 - 5), cv2.FONT_HERSHEY_SIMPLEX,
+                    cv2.putText(frame, "target:", (rectangle_x2, rectangle_y2 - 5), cv2.FONT_HERSHEY_SIMPLEX,
                                 0.5, [255, 255, 255])
                     X = int((point2_2x + point1_4x) / 2)
                     Y = int((point2_2y + point1_4y) / 2)
