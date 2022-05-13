@@ -1,5 +1,5 @@
 import pyrealsense2 as rs
-import cv2
+import cv2 #VERSION 3.4.3.18
 import numpy as np
 
 
