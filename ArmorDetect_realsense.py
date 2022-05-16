@@ -339,6 +339,6 @@ if __name__ == "__main__":
     sensor = pipeline.get_active_profile().get_device().query_sensors()[1]
 
     # Set the exposure anytime during the operation
-
+    sensor.set_option(rs.option.exposure, 5.000)
 
     main()
