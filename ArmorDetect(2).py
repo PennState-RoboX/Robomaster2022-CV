@@ -1,4 +1,4 @@
-#import pyrealsense2 as rs
+import pyrealsense2 as rs
 import cv2
 import numpy as np
 from solve_Angle import solve_Angle455
@@ -42,8 +42,8 @@ def dilate_binary(binary, x, y):
 
 
 def read_morphology(cap):  # read cap and morphological operation to get led binary image.
-    ret, frame = cap.read()
-    frame = undistort(frame)
+    frame = cap
+    #frame = undistort(frame)
     global targetColor #
 
     """
@@ -87,7 +87,7 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
     erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
     dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
     # dst_open = open_binary(mask, open, open) currently not needed
-    dst_close = close_binary(maskRG, close, close)
+    dst_close = close_binary(maskRBG, close, close)
     dst_erode = erode_binary(dst_close, erode, erode)
     dst_dilate = dilate_binary(dst_erode, dilate, dilate)
 
@@ -260,8 +260,41 @@ def main():
 
 
     creatTrackbar()
+
+    try:
+        while True:
+
+            # Wait for a coherent pair of frames: depth and color
+            frames = pipeline.wait_for_frames()
+            depth_frame = frames.get_depth_frame()
+            color_frame = frames.get_color_frame()
+            if not depth_frame or not color_frame:
+                continue
+
+            # Convert images to numpy arrays
+            depth_image = np.asanyarray(depth_frame.get_data())
+            color_image = np.asanyarray(color_frame.get_data())# obtain the image to detect armors
+
+            binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
+            find_contours(binary, frame)
+            cv2.imshow("original", frame)
+
+            cv2.waitKey(1)
+
+    finally:
+
+        # Stop streaming
+        pipeline.stop()
+
+
+
+
+
+
+
+
     while True:
-        binary, frame = read_morphology(cap)  # changed read_morphology()'s output from binary to mask
+        binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
         find_contours(binary, frame)
         cv2.circle(frame, (320, 240), 2, (0, 255, 255), -1)
         cv2.imshow("original", frame)
@@ -274,7 +307,33 @@ if __name__ == "__main__":
     targetColor = 1  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
-    cap = cv2.VideoCapture(1) # the number here depends on your device's camera, usually default with 0
-    cap.set(15, -9)  # EXPOSURE -10 ; threshold's version exposure -8
-    cap.set(cv2.CAP_PROP_FPS, 1)
+    # Configure depth and color streams
+    pipeline = rs.pipeline()
+    config = rs.config()
+
+    # Get device product line for setting a supporting resolution
+    pipeline_wrapper = rs.pipeline_wrapper(pipeline)
+    pipeline_profile = config.resolve(pipeline_wrapper)
+    device = pipeline_profile.get_device()
+    device_product_line = str(device.get_info(rs.camera_info.product_line))
+
+    found_rgb = False
+    for s in device.sensors:
+        if s.get_info(rs.camera_info.name) == 'RGB Camera':
+            found_rgb = True
+            break
+    if not found_rgb:
+        print("The demo requires Depth camera with Color sensor")
+        exit(0)
+
+    config.enable_stream(rs.stream.depth, 640, 360, rs.format.z16, 30)
+
+    if device_product_line == 'L500':
+        config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
+    else:
+        config.enable_stream(rs.stream.color, 640, 360, rs.format.bgr8, 30)
+
+    # Start streaming
+    pipeline.start(config)
+
     main()
