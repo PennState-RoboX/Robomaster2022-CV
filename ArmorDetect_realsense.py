@@ -87,7 +87,7 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
     erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
     dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
     # dst_open = open_binary(mask, open, open) currently not needed
-    dst_close = close_binary(maskRBG, close, close)
+    dst_close = close_binary(maskRG, close, close)
     dst_erode = erode_binary(dst_close, erode, erode)
     dst_dilate = dilate_binary(dst_erode, dilate, dilate)
 
@@ -234,10 +234,14 @@ def find_contours(binary, frame):  # find contours and main screening section
 
 
                     if point1_1x > point2_1x:
-                        cv2.rectangle(frame, (point2_2x, point2_2y), (point1_4x, point1_4y), (255, 255, 255), 2)
+                        c1 = point2_2x, point2_2y
+                        c2 = point1_4x, point1_4y
+                        cv2.rectangle(frame, (int(point2_2x), int(c1[1])), (int(c2[0]), int(c2[1])), (255, 255, 255), 2)
 
                     else:
-                        cv2.rectangle(frame, (point1_2x, point1_2y), (point2_4x, point2_4y), (255, 255, 255), 2)
+                        c1 = point1_2x, point1_2y
+                        c2 = point2_4x, point2_4y
+                        cv2.rectangle(frame, (int(c1[0]), int(c1[1])), (int(c2[0]), int(c2[1])), (255, 255, 255), 2)
 
 
                     cv2.putText(frame, "target:", (rectangle_x2, rectangle_y2 - 5), cv2.FONT_HERSHEY_SIMPLEX,
@@ -277,6 +281,7 @@ def main():
 
             binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
             find_contours(binary, frame)
+            cv2.circle(frame, (320, 180), 2, (255, 255, 255), -1)
             cv2.imshow("original", frame)
 
             cv2.waitKey(1)
@@ -293,13 +298,7 @@ def main():
 
 
 
-    while True:
-        binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
-        find_contours(binary, frame)
-        cv2.circle(frame, (320, 240), 2, (0, 255, 255), -1)
-        cv2.imshow("original", frame)
 
-        cv2.waitKey(1)
 
 if __name__ == "__main__":
 
@@ -335,5 +334,11 @@ if __name__ == "__main__":
 
     # Start streaming
     pipeline.start(config)
+
+    # Get the sensor once at the beginning. (Sensor index: 1)
+    sensor = pipeline.get_active_profile().get_device().query_sensors()[1]
+
+    # Set the exposure anytime during the operation
+
 
     main()
