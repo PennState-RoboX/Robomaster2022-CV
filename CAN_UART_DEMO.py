@@ -1,8 +1,8 @@
 import can
-import serial
-
+import serial # This is from PySerial
+ 
 #init CAN and uart
-bus = can.bus(interface='socketcan',channel='can0',receive_own_messages=True)
+bus = can.interface.Bus(interface='socketcan',channel='can0',receive_own_messages=True)
 ser = serial.Serial('/dev/tty0',115200)
 
 #send message
@@ -14,7 +14,7 @@ ser.write(0x01)
 
 #recieve message
 for msg in bus:
-    print("{X}: {}".format(msg.arbitriation_id, msg.data))
+    print("{X}: {}".format(msg.arbitration_id, msg.data))
 
 #recommanded notify method for recieving
 notifier = can.Notifier(bus, [canLogger("recorded.log"), can.Printer()])
