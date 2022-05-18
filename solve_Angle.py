@@ -3,8 +3,8 @@ import numpy as np
 import math
 
 def solve_Angle455(imgPoints):
-    width_size_half = 70
-    height_size_half = 62.5
+    width_size_half = 70 # small armor board's width(include light bar's width)
+    height_size_half = 62.5 #  small armor board's height
     fx = 645.455984328821
     cx = 643.077674664939
     fy = 644.606305889468
