@@ -277,7 +277,7 @@ def find_contours(binary, frame):  # find contours and main screening section
                                  ], dtype=np.float64)
                             solve_Angle455(imgPoints)
 
-                    else: # armor board in non-90 degree position
+                    else:  # armor board in non-90 degree position
 
                         if point1_1x > point2_1x:
                             cv2.rectangle(frame, (int(point1_2x), int(point1_2y)), (int(point2_4x), int(point2_4y)), (255, 255, 255), 2)
