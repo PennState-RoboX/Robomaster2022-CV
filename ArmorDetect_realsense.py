@@ -281,7 +281,7 @@ def main():
 
             binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
             find_contours(binary, frame)
-            cv2.circle(frame, (320, 180), 2, (255, 255, 255), -1)
+            cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
             cv2.imshow("original", frame)
 
             cv2.waitKey(1)
@@ -330,7 +330,7 @@ if __name__ == "__main__":
     if device_product_line == 'L500':
         config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
     else:
-        config.enable_stream(rs.stream.color, 640, 360, rs.format.bgr8, 30)
+        config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
 
     # Start streaming
     pipeline.start(config)
