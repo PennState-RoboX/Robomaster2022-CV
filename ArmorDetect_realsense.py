@@ -257,6 +257,7 @@ def find_contours(binary, frame):  # find contours and main screening section
                             imgPoints = np.array([[point2_1x, armor_tl], [point2_4x, armor_bl], [point1_3x, armor_br],
                                                   [point1_2x, armor_tr]], dtype=np.float64)
                             solve_Angle455(imgPoints)
+
                         else:#point 2 is the rectangle vertices of right light bar
                             right_lightBar_len = abs(point2_1y - point2_4y)  # right Bar length
                             left_lightBar_len = abs(point1_2y - point1_3y)
@@ -275,7 +276,8 @@ def find_contours(binary, frame):  # find contours and main screening section
                                 [[point2_2x, armor_tr], [point2_3x, armor_br], [point1_4x, armor_bl],[point1_1x, armor_tl]
                                  ], dtype=np.float64)
                             solve_Angle455(imgPoints)
-                    else:
+
+                    else: # armor board in non-90 degree position
 
                         if point1_1x > point2_1x:
                             cv2.rectangle(frame, (int(point1_2x), int(point1_2y)), (int(point2_4x), int(point2_4y)), (255, 255, 255), 2)
