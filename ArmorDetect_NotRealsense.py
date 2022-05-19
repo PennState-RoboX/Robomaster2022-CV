@@ -1,7 +1,7 @@
 
 import cv2
 import numpy as np
-from solve_Angle import solve_Angle455
+from solve_Angle import solve_AngleDualLeft
 from CamInfo_Dual_Left import undistort
 import time
 
@@ -259,10 +259,10 @@ def find_contours(binary, frame,fps):  # find contours and main screening sectio
                             cv2.circle(frame, (int(point1_2x), int(armor_tr)), 2, (255, 255, 255), -1) # test armor_tr
                             cv2.circle(frame, (int(point2_4x), int(armor_bl)), 2, (0, 255, 0), -1) # test armor_bl
 
-                            '''Prepare rect 4 vertices array and then pass it to (1) solve_Angle455's argument (2) number detection'''
+                            '''Prepare rect 4 vertices array and then pass it to (1) solve_AngleDualLeft's argument (2) number detection'''
                             imgPoints = np.array([[point2_1x, armor_tl], [point2_4x, armor_bl], [point1_3x, armor_br],
                                                   [point1_2x, armor_tr]], dtype=np.float64)
-                            tvec,Yaw, Pitch = solve_Angle455(imgPoints)
+                            tvec,Yaw, Pitch = solve_AngleDualLeft(imgPoints)
 
 
                         else:#point 2 is the rectangle vertices of right light bar
@@ -278,11 +278,11 @@ def find_contours(binary, frame,fps):  # find contours and main screening sectio
                             cv2.circle(frame, (int(point2_2x), int(armor_tr)), 2, (0, 255, 0), -1) #test armor_tr
                             cv2.circle(frame, (int(point1_4x), int(armor_bl)), 2, (255, 255, 255), -1) #test armor_bl
 
-                            '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
+                            '''Prepare rect 4 vertices array and then pass it as solve_AngleDualLeft's argument'''
                             imgPoints = np.array(
                                 [[point2_2x, armor_tr], [point2_3x, armor_br], [point1_4x, armor_bl],[point1_1x, armor_tl]
                                  ], dtype=np.float64)
-                            tvec,Yaw, Pitch = solve_Angle455(imgPoints)
+                            tvec,Yaw, Pitch = solve_AngleDualLeft(imgPoints)
 
 
                     else:  # armor board in non-90 degree position
@@ -304,17 +304,17 @@ def find_contours(binary, frame,fps):  # find contours and main screening sectio
                             cv2.line(frame,(armor_tl_x,armor_tl_y),(armor_br_x,armor_br_y) , (255, 255, 255), 2)
                             cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
                             cv2.circle(frame, (int(point2_1x), int(point2_1y)), 5, (255, 255, 0), -1)
-                            '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
+                            '''Prepare rect 4 vertices array and then pass it as solve_AngleDualLeft's argument'''
                             imgPoints = np.array([[point2_1x, point2_1y], [point2_2x, point2_2y], [point1_3x, point1_3y],
                                                   [point1_4x, point1_4y]], dtype=np.float64)
-                            tvec,Yaw, Pitch = solve_Angle455(imgPoints)
+                            tvec,Yaw, Pitch = solve_AngleDualLeft(imgPoints)
 
                         else:
                             cv2.rectangle(frame, (int(point1_2x), int(point1_2y)), (int(point2_4x), int(point2_4y)), (0, 255, 255), 2)
 
                             imgPoints = np.array([[point2_1x, point2_1y], [point2_2x, point2_2y], [point1_3x, point1_3y],
                                                   [point1_4x, point1_4y]], dtype=np.float64)
-                            tvec,Yaw, Pitch = solve_Angle455(imgPoints)
+                            tvec,Yaw, Pitch = solve_AngleDualLeft(imgPoints)
 
                     depth = str(tvec[2][0]) + 'mm'
                     cv2.putText(frame, depth,(90, 20),cv2.FONT_HERSHEY_SIMPLEX,0.5, [0, 255, 0])
@@ -343,7 +343,7 @@ def main():
 
     fps = 0
     while True:
-        starttime = time.time()
+        #starttime = time.time()
         ret, frame = cap.read()
         width = 1280
         frame = frame[:, :int(width / 2), :]
@@ -362,9 +362,9 @@ def main():
         cv2.imshow("original", frame)
         cv2.waitKey(1)
 
-        endtime = time.time()
+        #endtime = time.time()
 
-        fps = 1/(endtime - starttime)
+        #fps = 1/(endtime - starttime)
 
 
 if __name__ == "__main__":
@@ -373,7 +373,7 @@ if __name__ == "__main__":
     targetColor = 1  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
-    cap = cv2.VideoCapture(0) # the number here depends on your device's camera, usually default with 0
+    cap = cv2.VideoCapture(1) # the number here depends on your device's camera, usually default with 0
     cap.set(15, -10)  # EXPOSURE -10 ; threshold's version exposure -8
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(1280))
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT,float(480))
