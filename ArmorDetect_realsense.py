@@ -44,41 +44,58 @@ def dilate_binary(binary, x, y):
 
 def read_morphology(cap):  # read cap and morphological operation to get led binary image.
     frame = cap
-    #frame = undistort(frame)
+    #frame = unread_morphologydistort(frame)
     global targetColor #
+    B, G, R = cv2.split(frame)  # Split channels
 
     """
     Method1: subtract the opposite color's channel with the desired color channel(For Red:R-B or For Blue:B-R)
     """
-    B, G, R = cv2.split(frame)  # Split channels
-    if targetColor: # Red = 1
-        redHighLight = cv2.subtract(R, B) * 2  # subtract Red channel with Blue Channel
-        redBlur = cv2.blur(redHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
-        ret, mask = cv2.threshold(redBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
-    else:
-        blueHighLight = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
-        blueBlur = cv2.blur(blueHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
-        ret, mask = cv2.threshold(blueBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
+    
+    #if targetColor: # Red = 1
+    #    redHighLight = cv2.subtract(R, B) * 2  # subtract Red channel with Blue Channel
+    #    redBlur = cv2.blur(redHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
+    #    ret, mask = cv2.threshold(redBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
+    #else:
+    #blueHighLight = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
+    #blueBlur = cv2.blur(blueHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
+    #ret, mask = cv2.threshold(blueBlur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
     """
     Method2: try thresholds on differnet channels seperatedly(higher threshold on desired color channel; lower
     threshold on other channels)
     """
-    ret1, mask1 = cv2.threshold(R, 130, 255, cv2.THRESH_BINARY)
-    ret2, mask2 = cv2.threshold(G, 90, 255, cv2.THRESH_BINARY_INV)
-    ret3, mask3 = cv2.threshold(B, 50, 255, cv2.THRESH_BINARY_INV)
-    maskRG = cv2.bitwise_and(mask1, mask2)  # split channels,set threshold seperately, bitwise together
+    """ for red """
+    if targetColor: # Red = 1
+	    ret1, mask1 = cv2.threshold(R, 160, 255, cv2.THRESH_BINARY)
+	    ret2, mask2 = cv2.threshold(G, 100, 255, cv2.THRESH_BINARY_INV)
+	    #ret3, mask3 = cv2.threshold(B, 250, 255, cv2.THRESH_BINARY_INV)
+	    maskRG = cv2.bitwise_and(mask1, mask2)  # split channels,set threshold seperately, bitwise together
+	    #maskRBG1 = cv2.bitwise_and(maskRG1, mask3)
+    else: # Blue mode
+	    """ for blue in threshold method, but it can't filter out white lights
+	    ret3, mask4_max = cv2.threshold(B, 240, 255, cv2.THRESH_BINARY_INV)
+	    ret3, mask4_max_min = cv2.threshold(B, 210, 255, cv2.THRESH_BINARY)
+	    ret2, mask5 = cv2.threshold(G, 245, 255, cv2.THRESH_BINARY_INV)
+	    ret2, mask6 = cv2.threshold(mask5, 71, 255, cv2.THRESH_BINARY)
+	    maskGB = cv2.bitwise_and(mask4_max_min, mask6)  # split channels,set threshold seperately, bitwise together
+	    #maskRGB = cv2.bitwise_and(maskGB, mask6)
+
+	    """ 
+	    blueHighLight = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
+    	    blueBlur = cv2.blur(blueHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
+    	    ret, mask = cv2.threshold(blueBlur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
 
     """
     combine Method 1 and 2 together; needed or not?
     """
-    maskRBG = cv2.bitwise_and(maskRG, mask3)
-    combination = cv2.bitwise_and(maskRBG, mask)
+    
+    #combination = cv2.bitwise_and(maskRBG, mask)
 
     """
     Show difference between Method 1 and Method 2
     """
     cv2.imshow("substraction", mask)
-    cv2.imshow("thresholded", maskRBG)
+    cv2.imshow("thresholded", maskGB)
 
     """
     Morphological processing of the processed binary image
@@ -88,7 +105,7 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
     erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
     dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
     # dst_open = open_binary(mask, open, open) currently not needed
-    dst_close = close_binary(maskRG, close, close)
+    dst_close = close_binary(maskGB, close, close)
     dst_erode = erode_binary(dst_close, erode, erode)
     dst_dilate = dilate_binary(dst_erode, dilate, dilate)
 
@@ -305,31 +322,16 @@ def find_contours(binary, frame,fps):  # find contours and main screening sectio
                             cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
                             cv2.circle(frame, (int(point2_1x), int(point2_1y)), 5, (255, 255, 0), -1)
                             '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
-                            imgPoints = np.array(
-                                [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
-                                 [armor_br_x, armor_br_y]], dtype=np.float64)
+                            imgPoints = np.array([[point2_1x, point2_1y], [point2_2x, point2_2y], [point1_3x, point1_3y],
+                                                  [point1_4x, point1_4y]], dtype=np.float64)
                             tvec,Yaw, Pitch = solve_Angle455(imgPoints)
 
                         else:
-                            right_lightBar_len = abs(point2_3y - point2_4y)  # right Bar length
-                            left_lightBar_len = abs(point1_2y - point1_1y)
-                            """all armor tr,tl,br,bl are exclude the light bar"""
-                            armor_tl_y = int(point1_2y - 1 / 2 * left_lightBar_len)
-                            armor_br_y = int(point2_4y + 1 / 2 * right_lightBar_len)
-                            armor_tr_y = int(point2_3y - 1 / 2 * right_lightBar_len)
-                            armor_bl_y = int(point1_1y + 1 / 2 * left_lightBar_len)
-                            armor_tl_x = int(point1_2x)
-                            armor_br_x = int(point2_4x)
-                            armor_tr_x = int(point2_3x)
-                            armor_bl_x = int(point1_1x)
-                            # cv2.polylines(frame, [pts], True, (0, 255, 255))
-                            cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (255, 255, 255), 2)
-                            cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
-                            #cv2.circle(frame, (int(point2_1x), int(point2_1y)), 5, (255, 255, 0), -1)
-                            '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
-                            imgPoints = np.array(
-                                [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
-                                 [armor_br_x, armor_br_y]], dtype=np.float64)
+                            cv2.rectangle(frame, (int(point1_2x), int(point1_2y)), (int(point2_4x), int(point2_4y)), (0, 255, 255), 2)
+
+                            imgPoints = np.array([[point2_1x, point2_1y], [point2_2x, point2_2y], [point1_3x, point1_3y],
+                                                  [point1_4x, point1_4y]], dtype=np.float64)
+                            tvec,Yaw, Pitch = solve_Angle455(imgPoints)
 
                     depth = str(tvec[2][0]) + 'mm'
                     cv2.putText(frame, depth,(90, 20),cv2.FONT_HERSHEY_SIMPLEX,0.5, [0, 255, 0])
@@ -400,7 +402,7 @@ def main():
 if __name__ == "__main__":
 
     """Declare your desired target color here"""
-    targetColor = 1  # Red = 1 ; Blue = 0
+    targetColor = 0  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
     # Configure depth and color streams
