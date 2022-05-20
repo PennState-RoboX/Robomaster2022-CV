@@ -305,16 +305,31 @@ def find_contours(binary, frame,fps):  # find contours and main screening sectio
                             cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
                             cv2.circle(frame, (int(point2_1x), int(point2_1y)), 5, (255, 255, 0), -1)
                             '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
-                            imgPoints = np.array([[point2_1x, point2_1y], [point2_2x, point2_2y], [point1_3x, point1_3y],
-                                                  [point1_4x, point1_4y]], dtype=np.float64)
+                            imgPoints = np.array(
+                                [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
+                                 [armor_br_x, armor_br_y]], dtype=np.float64)
                             tvec,Yaw, Pitch = solve_Angle455(imgPoints)
 
                         else:
-                            cv2.rectangle(frame, (int(point1_2x), int(point1_2y)), (int(point2_4x), int(point2_4y)), (0, 255, 255), 2)
-
-                            imgPoints = np.array([[point2_1x, point2_1y], [point2_2x, point2_2y], [point1_3x, point1_3y],
-                                                  [point1_4x, point1_4y]], dtype=np.float64)
-                            tvec,Yaw, Pitch = solve_Angle455(imgPoints)
+                            right_lightBar_len = abs(point2_3y - point2_4y)  # right Bar length
+                            left_lightBar_len = abs(point1_2y - point1_1y)
+                            """all armor tr,tl,br,bl are exclude the light bar"""
+                            armor_tl_y = int(point1_2y - 1 / 2 * left_lightBar_len)
+                            armor_br_y = int(point2_4y + 1 / 2 * right_lightBar_len)
+                            armor_tr_y = int(point2_3y - 1 / 2 * right_lightBar_len)
+                            armor_bl_y = int(point1_1y + 1 / 2 * left_lightBar_len)
+                            armor_tl_x = int(point1_2x)
+                            armor_br_x = int(point2_4x)
+                            armor_tr_x = int(point2_3x)
+                            armor_bl_x = int(point1_1x)
+                            # cv2.polylines(frame, [pts], True, (0, 255, 255))
+                            cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (255, 255, 255), 2)
+                            cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
+                            #cv2.circle(frame, (int(point2_1x), int(point2_1y)), 5, (255, 255, 0), -1)
+                            '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
+                            imgPoints = np.array(
+                                [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
+                                 [armor_br_x, armor_br_y]], dtype=np.float64)
 
                     depth = str(tvec[2][0]) + 'mm'
                     cv2.putText(frame, depth,(90, 20),cv2.FONT_HERSHEY_SIMPLEX,0.5, [0, 255, 0])
