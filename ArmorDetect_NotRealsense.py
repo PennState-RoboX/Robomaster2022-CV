@@ -1,7 +1,7 @@
 
 import cv2
 import numpy as np
-from solve_Angle import solve_AngleDualLeft
+from solve_Angle import solve_Angle455
 from CamInfo_Dual_Left import undistort
 import time
 
@@ -42,43 +42,65 @@ def dilate_binary(binary, x, y):
     return dst
 
 
-def read_morphology(frame):  # read cap and morphological operation to get led binary image.
-
-
-    global targetColor #
+def read_morphology(cap):  # read cap and morphological operation to get led binary image.
+    frame = cap
+    # frame = unread_morphologydistort(frame)
+    global targetColor  #
+    B, G, R = cv2.split(frame)  # Split channels
 
     """
     Method1: subtract the opposite color's channel with the desired color channel(For Red:R-B or For Blue:B-R)
     """
-    B, G, R = cv2.split(frame)  # Split channels
-    if targetColor: # Red = 1
-        redHighLight = cv2.subtract(R, B) * 2  # subtract Red channel with Blue Channel
-        redBlur = cv2.blur(redHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
-        ret, mask = cv2.threshold(redBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
-    else:
-        blueHighLight = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
-        blueBlur = cv2.blur(blueHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
-        ret, mask = cv2.threshold(blueBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
+
+    # if targetColor: # Red = 1
+    #    redHighLight = cv2.subtract(R, B) * 2  # subtract Red channel with Blue Channel
+    #    redBlur = cv2.blur(redHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
+    #    ret, mask = cv2.threshold(redBlur, 30, 255, cv2.THRESH_BINARY)  # Convert to binary img
+    # else:
+    # blueHighLight = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
+    # blueBlur = cv2.blur(blueHighLight, (3, 3))  # blur the overexposure part(central part of the light bar)
+    # ret, mask = cv2.threshold(blueBlur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
     """
     Method2: try thresholds on differnet channels seperatedly(higher threshold on desired color channel; lower
     threshold on other channels)
     """
-    ret1, mask1 = cv2.threshold(R, 130, 255, cv2.THRESH_BINARY)
-    ret2, mask2 = cv2.threshold(G, 90, 255, cv2.THRESH_BINARY_INV)
-    ret3, mask3 = cv2.threshold(B, 50, 255, cv2.THRESH_BINARY_INV)
-    maskRG = cv2.bitwise_and(mask1, mask2)  # split channels,set threshold seperately, bitwise together
+    """ for red """
+    if targetColor:  # Red = 1
+        ret1, mask1 = cv2.threshold(R, 160, 255, cv2.THRESH_BINARY)
+        ret2, mask2 = cv2.threshold(G, 100, 255, cv2.THRESH_BINARY_INV)
+        # ret3, mask3 = cv2.threshold(B, 250, 255, cv2.THRESH_BINARY_INV)
+        mask_processed = cv2.bitwise_and(mask1, mask2)  # split channels,set threshold seperately, bitwise together
+        #mask_processed = cv2.blur(mask_red, (3, 3))  # blur the overexposure part(central part of the light bar)
+        # maskRBG1 = cv2.bitwise_and(maskRG1, mask3)
+
+        blue_high_light = cv2.subtract(R, B) * 2  # subtract Red channel with Blue Channel
+        blue_blur = cv2.blur(blue_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
+        ret, mask_processed = cv2.threshold(blue_blur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
+
+    else:  # Blue mode
+        """ for blue in threshold method, but it can't filter out white lights
+            ret3, mask4_max = cv2.threshold(B, 240, 255, cv2.THRESH_BINARY_INV)
+            ret3, mask4_max_min = cv2.threshold(B, 210, 255, cv2.THRESH_BINARY)
+            ret2, mask5 = cv2.threshold(G, 245, 255, cv2.THRESH_BINARY_INV)
+            ret2, mask6 = cv2.threshold(mask5, 71, 255, cv2.THRESH_BINARY)
+            maskGB = cv2.bitwise_and(mask4_max_min, mask6)  # split channels,set threshold seperately, bitwise together
+            #maskRGB = cv2.bitwise_and(maskGB, mask6)
+        """
+        blue_high_light = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
+        blue_blur = cv2.blur(blue_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
+        ret, mask_processed = cv2.threshold(blue_blur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
 
     """
     combine Method 1 and 2 together; needed or not?
     """
-    maskRBG = cv2.bitwise_and(maskRG, mask3)
-    combination = cv2.bitwise_and(maskRBG, mask)
+
+    # combination = cv2.bitwise_and(maskRBG, mask)
 
     """
     Show difference between Method 1 and Method 2
     """
-    cv2.imshow("substraction", mask)
-    cv2.imshow("thresholded", maskRBG)
+    cv2.imshow("sub/threshold", mask_processed)
+    #cv2.imshow("thresholded", mask)
 
     """
     Morphological processing of the processed binary image
@@ -88,7 +110,7 @@ def read_morphology(frame):  # read cap and morphological operation to get led b
     erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
     dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
     # dst_open = open_binary(mask, open, open) currently not needed
-    dst_close = close_binary(maskRG, close, close)
+    dst_close = close_binary(mask_processed, close, close)
     dst_erode = erode_binary(dst_close, erode, erode)
     dst_dilate = dilate_binary(dst_erode, dilate, dilate)
 
@@ -98,7 +120,6 @@ def read_morphology(frame):  # read cap and morphological operation to get led b
     cv2.imshow("erode", dst_dilate)
 
     return dst_dilate, frame
-
 
 def find_contours(binary, frame,fps):  # find contours and main screening section
     contours, heriachy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -154,21 +175,26 @@ def find_contours(binary, frame,fps):  # find contours and main screening sectio
             data_dict["x4"] = x4
             data_dict["y4"] = y4
 
+            #box = np.int0(coor)
+            #cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
+            #print("rh: ",rh, "rw: ",rw,"z: ",z)
+
             """filer out undesired rectangle, only keep lightBar-like shape"""
-            if (float(rh / rw) >= 3) and (float(rh / rw) <= 9) \
-                    and (
-                    float(z) <= -70 or float(z) >= -30):  # filer out undesired rectangle, only keep lightBar-like shape
+            """90--->45-->0-center(horizontally)->90-->45-->0"""
+            if (float(rh / rw) >= 1.5) and (float(rh / rw) <= 5) \
+                    and (float(z) <= 40 or float(z) >= 0):  # filer out undesired rectangle, only keep lightBar-like shape
+                print(float(z))
                 first_data.append(data_dict)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
 
             # The rh will become rw when -70 <= z < -90, rw below will represent the minRectangle's height now
-            elif (float(rw / rh) >= 2) and (float(rw / rh) <= 9) \
-                    and (float(z) <= -70 or float(z) >= -30):
+            elif (float(rh / rw) >= 0.3) and (float(rh / rw) <= 0.7) \
+                    and (float(z) <= 90 or float(z) >= 50):
                 first_data.append(data_dict)
                 box = np.int0(coor)
-                cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
-                #print(z)
+                cv2.drawContours(frame, [box], -1, (0, 0, 255), 3)  # test countor minRectangle
+                # print(z)
 
         for i in range(len(first_data)):
 
@@ -330,6 +356,7 @@ def find_contours(binary, frame,fps):  # find contours and main screening sectio
                             imgPoints = np.array(
                                 [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                                  [armor_br_x, armor_br_y]], dtype=np.float64)
+                            tvec, Yaw, Pitch = solve_Angle455(imgPoints)
 
                     depth = str(tvec[2][0]) + 'mm'
                     cv2.putText(frame, depth,(90, 20),cv2.FONT_HERSHEY_SIMPLEX,0.5, [0, 255, 0])
@@ -360,8 +387,8 @@ def main():
     while True:
         #starttime = time.time()
         ret, frame = cap.read()
-        width = 1280
-        frame = frame[:, :int(width / 2), :]
+
+        #frame = frame[:, :int(width / 2), :] for use of dual camera
 
         '''get the calibrated image of the camera '''
         frame = undistort(frame)
@@ -385,7 +412,7 @@ def main():
 if __name__ == "__main__":
 
     """Declare your desired target color here"""
-    targetColor = 1  # Red = 1 ; Blue = 0
+    targetColor = 0  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
     cap = cv2.VideoCapture(1) # the number here depends on your device's camera, usually default with 0

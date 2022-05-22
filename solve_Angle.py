@@ -26,11 +26,11 @@ def solve_AngleDualLeft(imgPoints):
     distCoeffs = np.array([k1, k2, p1, p2, k3])
     retval,rvec,tvec  = cv2.solvePnP(objPoints, imgPoints, cameraMatrix, distCoeffs)
     # cv2.Rodrigues()
-    print (retval, rvec, tvec)
+    #print (retval, rvec, tvec)
     Yaw = np.arctan(tvec[(0,0)]/ tvec[(2,0)]) / 2 / 3.1415926535897932 * 360
     Pitch = np.arctan(tvec[(1, 0)] / tvec[(2, 0)]) / 2 / 3.1415926535897932 * 360
-    print("Yaw: ",Yaw)
-    print("Pitch: ",Pitch)
+    #print("Yaw: ",Yaw)
+    #print("Pitch: ",Pitch)
     return tvec,Yaw, Pitch
 
 def solve_Angle455(imgPoints):
@@ -56,9 +56,9 @@ def solve_Angle455(imgPoints):
     distCoeffs = np.array([k1, k2, p1, p2, k3])
     retval,rvec,tvec  = cv2.solvePnP(objPoints, imgPoints, cameraMatrix, distCoeffs)
     # cv2.Rodrigues()
-    print (retval, rvec, tvec)
+    #print (retval, rvec, tvec)
     Yaw = np.arctan(tvec[(0,0)]/ tvec[(2,0)]) / 2 / 3.1415926535897932 * 360
     Pitch = np.arctan(tvec[(1, 0)] / tvec[(2, 0)]) / 2 / 3.1415926535897932 * 360
-    print("Yaw: ",Yaw)
-    print("Pitch: ",Pitch)
+    #print("Yaw: ",Yaw)
+    #print("Pitch: ",Pitch)
     return tvec,Yaw, Pitch
