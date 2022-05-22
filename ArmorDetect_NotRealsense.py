@@ -1,9 +1,10 @@
-
+import os
 import cv2
 import numpy as np
 from solve_Angle import solve_Angle455
 from CamInfo_Dual_Left import undistort
 import time
+import UART_UTIL as ur
 
 def nothing(x):
     pass
@@ -357,7 +358,7 @@ def find_contours(binary, frame,fps):  # find contours and main screening sectio
                                 [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                                  [armor_br_x, armor_br_y]], dtype=np.float64)
                             tvec, Yaw, Pitch = solve_Angle455(imgPoints)
-
+			
                     depth = str(tvec[2][0]) + 'mm'
                     cv2.putText(frame, depth,(90, 20),cv2.FONT_HERSHEY_SIMPLEX,0.5, [0, 255, 0])
                     cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
@@ -385,17 +386,17 @@ def main():
 
     fps = 0
     while True:
-        #starttime = time.time()
+        starttime = time.time()
         ret, frame = cap.read()
 
         #frame = frame[:, :int(width / 2), :] for use of dual camera
 
         '''get the calibrated image of the camera '''
-        frame = undistort(frame)
+        #frame = undistort(frame)
         cv2.circle(frame, (320, 240), 2, (255, 255, 255), -1)
         binary, frame = read_morphology(frame)  # changed read_morphology()'s output from binary to mask
         find_contours(binary, frame,fps)
-
+        ur.send_data(ser, '00', '01', '02')
         cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
         cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
         cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
@@ -404,9 +405,9 @@ def main():
         cv2.imshow("original", frame)
         cv2.waitKey(1)
 
-        #endtime = time.time()
+        endtime = time.time()
 
-        #fps = 1/(endtime - starttime)
+        fps = 1/(endtime - starttime)
 
 
 if __name__ == "__main__":
@@ -415,13 +416,16 @@ if __name__ == "__main__":
     targetColor = 0  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
-    cap = cv2.VideoCapture(1) # the number here depends on your device's camera, usually default with 0
+    cap = cv2.VideoCapture() # the number here depends on your device's camera, usually default with 0
+    cap.open(1,apiPreference=cv2.CAP_V4L2)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+    os.system('v4l2-ctl --device=/dev/video1 --set-ctrl=exposure_auto=2')
     cap.set(15, -10)  # EXPOSURE -10 ; threshold's version exposure -8
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(1280))
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT,float(480))
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT,float(720))
     cap.set(cv2.CAP_PROP_FPS, 60)
+    ser = ur.setUpSerial()
     print(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     print(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(cap.get(cv2.CAP_PROP_FPS))
     main()
-
