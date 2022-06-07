@@ -73,16 +73,16 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
     """
     """ for red """
     if targetColor:  # Red = 1
-        ret1, mask1 = cv2.threshold(R, 160, 255, cv2.THRESH_BINARY)
+        ret1, mask1 = cv2.threshold(R, 130, 255, cv2.THRESH_BINARY)
         ret2, mask2 = cv2.threshold(G, 100, 255, cv2.THRESH_BINARY_INV)
         # ret3, mask3 = cv2.threshold(B, 250, 255, cv2.THRESH_BINARY_INV)
         mask_processed = cv2.bitwise_and(mask1, mask2)  # split channels,set threshold seperately, bitwise together
         #mask_processed = cv2.blur(mask_red, (3, 3))  # blur the overexposure part(central part of the light bar)
         # maskRBG1 = cv2.bitwise_and(maskRG1, mask3)
 
-        blue_high_light = cv2.subtract(R, B) * 2  # subtract Red channel with Blue Channel
-        blue_blur = cv2.blur(blue_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
-        ret, mask_processed = cv2.threshold(blue_blur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
+        #red_high_light = cv2.subtract(R, B) * 3   # subtract Red channel with Blue Channel
+        #red_blur = cv2.blur(red_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
+        #ret, mask_processed = cv2.threshold(red_blur, 80, 255, cv2.THRESH_BINARY)  # Convert to binary img
 
     else:  # Blue mode
         """ for blue in threshold method, but it can't filter out white lights
@@ -130,6 +130,7 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
 
 
 def find_contours(binary, frame, fps):  # find contours and main screening section
+    global num
     contours, heriachy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     length = len(contours)
     first_data = []  # include all potential light bar's contourArea information dict by dict
@@ -187,16 +188,23 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
 
             """filer out undesired rectangle, only keep lightBar-like shape"""
             """90--->45-->0-center(horizontally)->90-->45-->0"""
-            if (float(rh / rw) >= 1.5) and (float(rh / rw) <= 5) \
-                    and (float(z) <= 40 or float(z) >= 0):  # filer out undesired rectangle, only keep lightBar-like shape
-                print(float(z))
+            if (float(rh / rw) >= 1.5) and (float(rh / rw) <= 8) \
+                    and (float(z) <= 15 and float(z) >= 0):  # filer out undesired rectangle, only keep lightBar-like shape
+
                 first_data.append(data_dict)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
 
-            # The rh will become rw when -70 <= z < -90, rw below will represent the minRectangle's height now
-            elif (float(rh / rw) >= 0.3) and (float(rh / rw) <= 0.7) \
-                    and (float(z) <= 90 or float(z) >= 50):
+            # The rh will become rw when center(horizontally)->90-->45-->0, rw below will represent the minRectangle's height now
+            elif (float(rh / rw) >= 0.125) and (float(rh / rw) <= 0.7) \
+                    and (float(z) <= 90 and float(z) >= 75):
+
+                '''switch rw and rh back to normal'''
+                temp = data_dict["rh"]
+                data_dict["rh"] = data_dict["rw"]
+                data_dict["rw"] = temp
+
+                print(float(z))
                 first_data.append(data_dict)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (0, 0, 255), 3)  # test countor minRectangle
@@ -224,12 +232,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                     second_data1.append(first_data[i])
                     second_data2.append(first_data[nextRect])
 
-                elif (abs(data_ryi - data_ryc) <= 3 * ((data_rhi + data_rhc) / 2)) \
-                        and (abs(data_rwi - data_rwc) <= 0.2 * max(data_rwi, data_rwc)) \
-                        and (abs(data_rxi - data_rxc) <= 3 * ((data_rwi + data_rwc) / 2)) \
-                        and (abs(data_rzi - data_rzc)) < 10:
-                    second_data1.append(first_data[i])
-                    second_data2.append(first_data[nextRect])
+
 
                 nextRect = nextRect + 1
 
@@ -243,7 +246,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                 rectangle_y2 = int(second_data2[i]["y3"])
 
                 if abs(rectangle_y1 - rectangle_y2) <= 3 * (abs(rectangle_x1 - rectangle_x2)):
-
+                    # all point data-type here are <class 'numpy.float32'>
                     point1_1x = second_data1[i]["x1"]
                     point1_1y = second_data1[i]["y1"]
                     point1_2x = second_data1[i]["x2"]
@@ -253,6 +256,13 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                     point1_4x = second_data1[i]["x4"]
                     point1_4y = second_data1[i]["y4"]
                     point1_z = second_data1[i]["z"]
+                    #print(type(point1_2y))
+
+                    '''rect1_param: output vertices in order, [bl,tl,tr,br]'''
+                    rect1_param = np.array([[point1_1x,point1_1y],[point1_2x,point1_2y],[point1_3x,point1_3y],[point1_4x,point1_4y]])
+                    rect1_param = findVerticesOrder(rect1_param)
+                    #rect1_param[0][1] equals to bl_y
+
 
                     point2_1x = second_data2[i]["x1"]
                     point2_1y = second_data2[i]["y1"]
@@ -263,10 +273,113 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                     point2_4x = second_data2[i]["x4"]
                     point2_4y = second_data2[i]["y4"]
                     point2_z = second_data2[i]["z"]
-                    #print(point2_z, '2       1', point1_z)
 
-                    '''when angle = 90; vertices: [ 1 2 ]
-                                                  [ 4 3 ]
+                    '''rect2_param: output vertices in order, [bl,tl,tr,br]'''
+                    rect2_param = np.array([[point2_1x, point2_1y], [point2_2x, point2_2y], [point2_3x, point2_3y],[point2_4x, point2_4y]])
+                    rect2_param = findVerticesOrder(rect2_param)  # output order: [bl,tl,tr,br]
+
+                    if point1_4x > point2_4x:  # point 1 is the rectangle vertices of right light bar
+                        right_lightBar_len = abs(rect1_param[2][1] - rect1_param[3][1])  # (TR - BR)y-axis
+                        left_lightBar_len = abs(rect2_param[1][1] - rect2_param[0][1]) # (TL - BL)y-axis
+                        """all armor tr,tl,br,bl are exclude the light bar"""
+                        armor_tl_y = int(rect2_param[1][1] - 1 / 2 * left_lightBar_len)
+                        armor_br_y = int(rect1_param[3][1] + 1 / 2 * right_lightBar_len)
+                        armor_tr_y = int(rect1_param[2][1] - 1 / 2 * right_lightBar_len)
+                        armor_bl_y = int(rect2_param[0][1] + 1 / 2 * left_lightBar_len)
+                        armor_tl_x = int(rect2_param[1][0])
+                        armor_br_x = int(rect1_param[3][0])
+                        armor_tr_x = int(rect1_param[2][0])
+                        armor_bl_x = int(rect2_param[0][0])
+
+                        # cv2.rectangle(frame, (int(point1_3x), int(armor_br)), (int(point2_1x), int(armor_tl)),(255, 0, 255), 2)
+                        #cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (0, 0, 255), 2)
+                        #cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (0, 0, 255), 2)
+
+                        #cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
+                        #cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
+                        #cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
+                        #cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
+
+                        '''Prepare rect 4 vertices array and then pass it to (1) solve_Angle455's argument (2) number detection'''
+                        imgPoints = np.array([[armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y], [armor_bl_x, armor_bl_y], [armor_br_x, armor_br_y]], dtype=np.float64)
+                        tvec, Yaw, Pitch = solve_Angle455(imgPoints)
+
+
+                    else:  # point 2 is the rectangle vertices of right light bar
+                        right_lightBar_len = abs(rect2_param[2][1] - rect2_param[3][1])  # (TR - BR)y-axis
+                        left_lightBar_len = abs(rect1_param[1][1] - rect1_param[0][1])  # (TL - BL)y-axis
+                        """all armor tr,tl,br,bl are exclude the light bar"""
+                        armor_tl_y = int(rect1_param[1][1] - 1 / 2 * left_lightBar_len)
+                        armor_br_y = int(rect2_param[3][1] + 1 / 2 * right_lightBar_len)
+                        armor_tr_y = int(rect2_param[2][1] - 1 / 2 * right_lightBar_len)
+                        armor_bl_y = int(rect1_param[0][1] + 1 / 2 * left_lightBar_len)
+                        armor_tl_x = int(rect1_param[1][0])
+                        armor_br_x = int(rect2_param[3][0])
+                        armor_tr_x = int(rect2_param[2][0])
+                        armor_bl_x = int(rect1_param[0][0])
+
+                        #cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (255, 255, 255), 2)
+                        #cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
+
+                        #cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
+                        #cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
+                        #cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
+                        #cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
+
+                        '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
+                        imgPoints = np.array([[armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y], [armor_bl_x, armor_bl_y], [armor_br_x, armor_br_y]], dtype=np.float64)
+                        tvec, Yaw, Pitch = solve_Angle455(imgPoints)
+
+                    '''collecting data set at below'''
+                    armboard_width = 27
+                    armboard_height = 25
+                    threshold = 10
+
+                    coordinate_before = np.float32(imgPoints)
+                    coordinate_after = np.float32([[0, 0], [armboard_width, 0], [0, armboard_height],
+                                                   [armboard_width, armboard_height]])
+
+                    # Compute the transformation matrix
+                    trans_mat = cv2.getPerspectiveTransform(coordinate_before, coordinate_after)
+                    # Perform transformation and show the result
+                    trans_img = cv2.warpPerspective(frame, trans_mat, (armboard_width, armboard_height))
+
+
+                    trans_img = np.array(255 * (trans_img / 255) ** 0.5, dtype='uint8')
+
+                    # Zero light bar effect on image edges
+                    # Define the number of pixel zeroed
+                    vertical_pixel = 2
+                    horizontal_pixel = 4
+                    for row in range(armboard_height):
+                        for col in range(armboard_width):
+                            if (row < vertical_pixel or row > armboard_height - vertical_pixel - 1) \
+                                    or (col < horizontal_pixel or col > armboard_width - horizontal_pixel - 1):
+                                trans_img[row, col] = 0
+
+                    cv2.imshow("trans_img", trans_img)
+                    cv2.resizeWindow("trans_img", 180, 180)
+
+                    # Convert to grayscale image
+                    gray_img = cv2.cvtColor(trans_img, cv2.COLOR_BGR2GRAY)
+                    #cv2.imshow("dila_img", gray_img)
+                    # Convert to binary image
+                    _, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
+                    # Erosion and dilation to denoise
+                    # Define the kernel (5 pixel * 5 pixel square)
+                    kernel = np.ones((2, 2), np.uint8)
+                    erode_img = cv2.erode(binary_img, kernel, iterations=1)
+                    dila_img = cv2.dilate(erode_img, kernel, iterations=1)
+
+                    cv2.imshow("dila_img", gray_img)
+
+                    cv2.imwrite('c:/Users/Zhuang/Desktop/RM2022\DataSet\General/{}.png'.format(num), gray_img)
+                    num += 1
+
+
+
+                    '''when angle = 90 or 90 --> angle --> 45; vertices: [ 1 2 ]
+                                                                         [ 4 3 ]
                         if point1_4x > point2_4x, point 1 is the rectangle vertices of right light bar;
                         if point1_4x < point2_4x, point 2 is the rectangle vertices of right light bar
                     '''
@@ -275,94 +388,11 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         if point1_4x > point2_4x, point 1 is the rectangle vertices of right light bar;
                         if point1_4x < point2_4x, point 2 is the rectangle vertices of right light bar
                     '''
-                    if point2_z == 90.0 and point1_z == 90.0:  # didn't solve the issue that the vertices will suddenly enlarge or shrink when angle = 0
-                        if point1_4x > point2_4x:  # point 1 is the rectangle vertices of right light bar
-                            right_lightBar_len = abs(point1_1y - point1_4y)  # right Bar length
-                            left_lightBar_len = abs(point2_2y - point2_3y)
-                            """all armor tr,tl,br,bl are exclude the light bar"""
-                            armor_tl = point2_1y - 1 / 2 * left_lightBar_len
-                            armor_br = point1_3y + 1 / 2 * right_lightBar_len
-                            armor_tr = point1_2y - 1 / 2 * right_lightBar_len
-                            armor_bl = point2_4y + 1 / 2 * left_lightBar_len
-
-                            cv2.rectangle(frame, (int(point1_3x), int(armor_br)), (int(point2_1x), int(armor_tl)),
-                                          (255, 0, 255), 2)
-                            cv2.circle(frame, (int(point1_2x), int(armor_tr)), 2, (255, 255, 255), -1)  # test armor_tr
-                            cv2.circle(frame, (int(point2_4x), int(armor_bl)), 2, (0, 255, 0), -1)  # test armor_bl
-
-                            '''Prepare rect 4 vertices array and then pass it to (1) solve_Angle455's argument (2) number detection'''
-                            imgPoints = np.array([[point2_1x, armor_tl], [point2_4x, armor_bl], [point1_3x, armor_br],
-                                                  [point1_2x, armor_tr]], dtype=np.float64)
-                            tvec, Yaw, Pitch = solve_Angle455(imgPoints)
 
 
-                        else:  # point 2 is the rectangle vertices of right light bar
-                            right_lightBar_len = abs(point2_1y - point2_4y)  # right Bar length
-                            left_lightBar_len = abs(point1_2y - point1_3y)
-                            """all armor tr,tl,br,bl are exclude the light bar"""
-                            armor_tl = point1_1y - 1 / 2 * left_lightBar_len
-                            armor_br = point2_4y + 1 / 2 * right_lightBar_len
-                            armor_tr = point2_2y - 1 / 2 * right_lightBar_len
-                            armor_bl = point1_4y + 1 / 2 * left_lightBar_len
-                            cv2.rectangle(frame, (int(point2_3x), int(armor_br)), (int(point1_1x), int(armor_tl)),
-                                          (255, 0, 255), 2)
-                            cv2.circle(frame, (int(point2_2x), int(armor_tr)), 2, (0, 255, 0), -1)  # test armor_tr
-                            cv2.circle(frame, (int(point1_4x), int(armor_bl)), 2, (255, 255, 255), -1)  # test armor_bl
-
-                            '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
-                            imgPoints = np.array(
-                                [[point2_2x, armor_tr], [point2_3x, armor_br], [point1_4x, armor_bl],
-                                 [point1_1x, armor_tl]
-                                 ], dtype=np.float64)
-                            tvec, Yaw, Pitch = solve_Angle455(imgPoints)
 
 
-                    else:  # armor board in non-90 degree position
 
-                        if point1_1x > point2_1x:
-
-                            right_lightBar_len = abs(point1_3y - point1_4y)  # right Bar length
-                            left_lightBar_len = abs(point2_2y - point2_1y)
-                            """all armor tr,tl,br,bl are exclude the light bar"""
-                            armor_tl_y = int(point2_2y - 1 / 2 * left_lightBar_len)
-                            armor_br_y = int(point1_4y + 1 / 2 * right_lightBar_len)
-                            armor_tr_y = int(point1_3y - 1 / 2 * right_lightBar_len)
-                            armor_bl_y = int(point2_1y + 1 / 2 * left_lightBar_len)
-                            armor_tl_x = int(point2_2x)
-                            armor_br_x = int(point1_4x)
-                            armor_tr_x = int(point1_3x)
-                            armor_bl_x = int(point2_1x)
-                            # cv2.polylines(frame, [pts], True, (0, 255, 255))
-                            cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (255, 255, 255), 2)
-                            cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
-                            cv2.circle(frame, (int(point2_1x), int(point2_1y)), 5, (255, 255, 0), -1)
-                            '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
-                            imgPoints = np.array(
-                                [[point2_1x, point2_1y], [point2_2x, point2_2y], [point1_3x, point1_3y],
-                                 [point1_4x, point1_4y]], dtype=np.float64)
-                            tvec, Yaw, Pitch = solve_Angle455(imgPoints)
-
-                        else:
-                            right_lightBar_len = abs(point2_3y - point2_4y)  # right Bar length
-                            left_lightBar_len = abs(point1_2y - point1_1y)
-                            """all armor tr,tl,br,bl are exclude the light bar"""
-                            armor_tl_y = int(point1_2y - 1 / 2 * left_lightBar_len)
-                            armor_br_y = int(point2_4y + 1 / 2 * right_lightBar_len)
-                            armor_tr_y = int(point2_3y - 1 / 2 * right_lightBar_len)
-                            armor_bl_y = int(point1_1y + 1 / 2 * left_lightBar_len)
-                            armor_tl_x = int(point1_2x)
-                            armor_br_x = int(point2_4x)
-                            armor_tr_x = int(point2_3x)
-                            armor_bl_x = int(point1_1x)
-                            # cv2.polylines(frame, [pts], True, (0, 255, 255))
-                            cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (255, 0, 255), 2)
-                            cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
-                            # cv2.circle(frame, (int(point2_1x), int(point2_1y)), 5, (255, 255, 0), -1)
-                            '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
-                            imgPoints = np.array(
-                                [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
-                                 [armor_br_x, armor_br_y]], dtype=np.float64)
-                            tvec, Yaw, Pitch = solve_Angle455(imgPoints)
 
                     """calculate image's area"""
 
@@ -385,6 +415,20 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
         # print("Looking for Targets...")
 
 
+def findVerticesOrder(vertices):
+    ''' sort rectangle points by clockwise '''
+    sort_x = vertices[np.argsort(vertices[:, 0]), :]
+
+    Left = sort_x[:2, :]
+    Right = sort_x[2:, :]
+    # Left sort
+    Left = Left[np.argsort(Left[:, 1])[::-1], :]
+    # Right sort
+    Right = Right[np.argsort(Right[:, 1]), :]
+
+    return np.concatenate((Left, Right), axis=0)
+
+
 def main():
     creatTrackbar()
     fps = 0
@@ -394,13 +438,13 @@ def main():
             starttime = time.time()
             # Wait for a coherent pair of frames: depth and color
             frames = pipeline.wait_for_frames()
-            depth_frame = frames.get_depth_frame()
+            #depth_frame = frames.get_depth_frame()
             color_frame = frames.get_color_frame()
-            if not depth_frame or not color_frame:
+            if  not color_frame:
                 continue
 
             # Convert images to numpy arrays
-            depth_image = np.asanyarray(depth_frame.get_data())
+            #depth_image = np.asanyarray(depth_frame.get_data())
             color_image = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
 
             binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
@@ -422,9 +466,9 @@ def main():
 
 
 if __name__ == "__main__":
-
+    num = 0  # for collecting dataset, pictures' names
     """Declare your desired target color here"""
-    targetColor = 0  # Red = 1 ; Blue = 0
+    targetColor = 1  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
     # Configure depth and color streams
@@ -446,12 +490,12 @@ if __name__ == "__main__":
         print("The demo requires Depth camera with Color sensor")
         exit(0)
 
-    config.enable_stream(rs.stream.depth, 640, 360, rs.format.z16, 30)
+    #config.enable_stream(rs.stream.depth, 640, 360, rs.format.z16, 30)
 
     if device_product_line == 'L500':  # if not D455
         config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
     else:
-        config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+        config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 15)
 
     # Start streaming
     pipeline.start(config)

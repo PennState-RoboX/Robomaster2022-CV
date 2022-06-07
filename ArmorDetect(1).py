@@ -269,12 +269,12 @@ if __name__ == "__main__":
     targetColor = 1  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
-    cap = cv2.VideoCapture(2) # the number here depends on your device's camera, usually default with 0
-    cap.set(15, -7)  # EXPOSURE -10 ; threshold's version exposure -8
+    cap = cv2.VideoCapture(1) # the number here depends on your device's camera, usually default with 0
+    #cap.set(15, -7)  # EXPOSURE -10 ; threshold's version exposure -8
     print(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     print(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(5000))
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT,float(5000))
+    #cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(5000))
+    #cap.set(cv2.CAP_PROP_FRAME_HEIGHT,float(5000))
     print(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     print(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     main()
