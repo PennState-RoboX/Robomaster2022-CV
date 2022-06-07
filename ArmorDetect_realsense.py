@@ -333,7 +333,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                     '''collecting data set at below'''
                     armboard_width = 27
                     armboard_height = 25
-                    threshold = 10
+                    threshold = 9
 
                     coordinate_before = np.float32(imgPoints)
                     coordinate_after = np.float32([[0, 0], [armboard_width, 0], [0, armboard_height],
