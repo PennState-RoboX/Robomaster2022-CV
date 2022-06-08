@@ -1,6 +1,8 @@
 import pyrealsense2 as rs
 import cv2
 import numpy as np
+
+from UART_UTIL import setUpSerial, send_data
 from solve_Angle import solve_Angle455
 from CamInfo_D455 import undistort
 import time
@@ -194,7 +196,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                 first_data.append(data_dict)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
-
+                #print(float(z))
             # The rh will become rw when center(horizontally)->90-->45-->0, rw below will represent the minRectangle's height now
             elif (float(rh / rw) >= 0.125) and (float(rh / rw) <= 0.7) \
                     and (float(z) <= 90 and float(z) >= 75):
@@ -301,7 +303,9 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         #cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
 
                         '''Prepare rect 4 vertices array and then pass it to (1) solve_Angle455's argument (2) number detection'''
-                        imgPoints = np.array([[armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y], [armor_bl_x, armor_bl_y], [armor_br_x, armor_br_y]], dtype=np.float64)
+                        imgPoints = np.array(
+                            [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
+                             [armor_br_x, armor_br_y]], dtype=np.float64)
                         tvec, Yaw, Pitch = solve_Angle455(imgPoints)
 
 
@@ -327,17 +331,26 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         #cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
 
                         '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
-                        imgPoints = np.array([[armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y], [armor_bl_x, armor_bl_y], [armor_br_x, armor_br_y]], dtype=np.float64)
+                        imgPoints = np.array(
+                            [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
+                             [armor_br_x, armor_br_y]], dtype=np.float64)
                         tvec, Yaw, Pitch = solve_Angle455(imgPoints)
+
+
+
+                    send_data(ser, angleA, angleB, angleC)
+
+
 
                     '''collecting data set at below'''
                     armboard_width = 27
                     armboard_height = 25
-                    threshold = 9
+
 
                     coordinate_before = np.float32(imgPoints)
-                    coordinate_after = np.float32([[0, 0], [armboard_width, 0], [0, armboard_height],
-                                                   [armboard_width, armboard_height]])
+                    # coordinate_after is in the order of imgPoints (bl,tl,tr,br)
+                    coordinate_after = np.float32([[0, armboard_height], [0, 0], [armboard_width, 0],
+                                                   [armboard_width,armboard_height]])
 
                     # Compute the transformation matrix
                     trans_mat = cv2.getPerspectiveTransform(coordinate_before, coordinate_after)
@@ -364,12 +377,12 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                     gray_img = cv2.cvtColor(trans_img, cv2.COLOR_BGR2GRAY)
                     #cv2.imshow("dila_img", gray_img)
                     # Convert to binary image
-                    _, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
+                    #_, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
                     # Erosion and dilation to denoise
                     # Define the kernel (5 pixel * 5 pixel square)
-                    kernel = np.ones((2, 2), np.uint8)
-                    erode_img = cv2.erode(binary_img, kernel, iterations=1)
-                    dila_img = cv2.dilate(erode_img, kernel, iterations=1)
+                    #kernel = np.ones((2, 2), np.uint8)
+                    #erode_img = cv2.erode(binary_img, kernel, iterations=1)
+                    #dila_img = cv2.dilate(erode_img, kernel, iterations=1)
 
                     cv2.imshow("dila_img", gray_img)
 
@@ -431,6 +444,7 @@ def findVerticesOrder(vertices):
 
 def main():
     creatTrackbar()
+    setUpSerial()
     fps = 0
 
     try:
