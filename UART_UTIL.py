@@ -1,35 +1,22 @@
-import serial
+import serial #Please Use PySetial package
 import time
 def setUpSerial():
     ser = serial.Serial('/dev/ttyTHS2', 115200)
-    #ser.open()
 
 def send_data(ser,angleA, angleB, angleC): #Angles are in Byte Formact
-    #packet = b'\x0d' #header
-    #packet = packet + angleA
-    #packet = packet + angleB
-    #packet = packet + angleC
-    #packet = packet + b'\x03' #not used
-    #packet = packet + b'\x04'
-    #packet = packet + b'\x00'
-    #packet = packet + b'\x04'
-    #packet = packet + b'\x00'
-    #packet = packet + b'\x04'
-    #packet = packet + b'\x00'
-    packet = '0d'
+    packet = 'a5' #Header Byte 
+    packet = packet + '5a'
+    packet = packet + '07' # Length of Packet
     packet = packet + angleA
     packet = packet + angleB
     packet = packet + angleC
-    packet = packet + '02'
-    packet = packet + '0a'
-    print(packet)
+    packet = packet + 'ff'
+    print(packet) # Packat before Conversion
     packet = bytes.fromhex(packet)
-    print(packet)
+    print(packet) #Packet Get Sent
     ser.write(packet)
 
-#ser = setUpSerial()
-#send_data(ser, "0x00")
-#send_data(ser, "0x06")
+#Below are example of how to use this utility
 ser = serial.Serial('/dev/ttyTHS2', 115200)
 
 while 1==1 :
