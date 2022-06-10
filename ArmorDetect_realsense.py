@@ -299,10 +299,10 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         #cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (0, 0, 255), 2)
                         #cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (0, 0, 255), 2)
 
-                        cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
-                        cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
-                        cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
-                        cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
+                        # cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
+                        # cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
+                        # cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
+                        # cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
 
                         '''Prepare rect 4 vertices array and then pass it to (1) solve_Angle455's argument (2) number detection'''
                         imgPoints = np.array(
@@ -327,10 +327,10 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         #cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (255, 255, 255), 2)
                         #cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
 
-                        cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
-                        cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
-                        cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
-                        cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
+                        # cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
+                        # cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
+                        # cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
+                        # cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
 
                         '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
                         imgPoints = np.array(
@@ -489,7 +489,10 @@ def targetsFilter(potential_Targetsets, frame):
         if (depth_Credit + angle_Credit) > max_Credit:
             max_Credit = (depth_Credit + angle_Credit)
             best_Target = [depth, Yaw, Pitch, imgPoints]
-
+    imgPoints = best_Target[3]
+    print(imgPoints[0][0])
+    cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])), (int(imgPoints[3][0]), int(imgPoints[3][1])), (255, 255, 255), 2)
+    cv2.line(frame, (int(imgPoints[2][0]), int(imgPoints[2][1])), (int(imgPoints[0][0]), int(imgPoints[0][1])), (255, 255, 255), 2)
     return best_Target
 
 
@@ -582,8 +585,8 @@ def main():
 
                     send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
-                    print("int pitch:" + serial_lst[0])
-                    print(serial_lst[2])
+                    #print("int pitch:" + serial_lst[0])
+                    #print(serial_lst[2])
                 else:
                     print("!!! Angle exceed limit !!!")
 
