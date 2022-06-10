@@ -1,7 +1,9 @@
+import math
+
 import pyrealsense2 as rs
 import cv2
 import numpy as np
-
+import serial
 from UART_UTIL import setUpSerial, send_data
 from solve_Angle import solve_Angle455
 from CamInfo_D455 import undistort
@@ -138,7 +140,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
     first_data = []  # include all potential light bar's contourArea information dict by dict
     second_data1 = []
     second_data2 = []
-    vertices = []  # for future use
+    potential_Targets = []  # unit: per imgPoints(np.array([[bl], [tl], [tr],[br]]))
 
     if length > 0:
         # collect info for every contour's rectangle
@@ -206,7 +208,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                 data_dict["rh"] = data_dict["rw"]
                 data_dict["rw"] = temp
 
-                print(float(z))
+                #print(float(z))
                 first_data.append(data_dict)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (0, 0, 255), 3)  # test countor minRectangle
@@ -247,7 +249,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                 rectangle_x2 = int(second_data2[i]["x3"])
                 rectangle_y2 = int(second_data2[i]["y3"])
 
-                if abs(rectangle_y1 - rectangle_y2) <= 3 * (abs(rectangle_x1 - rectangle_x2)):
+                if abs(rectangle_y1 - rectangle_y2) <= 3 * (abs(rectangle_x1 - rectangle_x2)): #if find potential bounded lightbar formed targets
                     # all point data-type here are <class 'numpy.float32'>
                     point1_1x = second_data1[i]["x1"]
                     point1_1y = second_data1[i]["y1"]
@@ -297,10 +299,10 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         #cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (0, 0, 255), 2)
                         #cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (0, 0, 255), 2)
 
-                        #cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
-                        #cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
-                        #cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
-                        #cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
+                        cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
+                        cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
+                        cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
+                        cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
 
                         '''Prepare rect 4 vertices array and then pass it to (1) solve_Angle455's argument (2) number detection'''
                         imgPoints = np.array(
@@ -325,10 +327,10 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         #cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (255, 255, 255), 2)
                         #cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
 
-                        #cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
-                        #cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
-                        #cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
-                        #cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
+                        cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
+                        cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
+                        cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
+                        cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
 
                         '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
                         imgPoints = np.array(
@@ -338,7 +340,8 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
 
 
 
-                    send_data(ser, angleA, angleB, angleC)
+
+
 
 
 
@@ -386,7 +389,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
 
                     cv2.imshow("dila_img", gray_img)
 
-                    cv2.imwrite('c:/Users/Zhuang/Desktop/RM2022\DataSet\General/{}.png'.format(num), gray_img)
+                    #cv2.imwrite('c:/Users/Zhuang/Desktop/RM2022\DataSet\General/{}.png'.format(num), gray_img)
                     num += 1
 
 
@@ -424,8 +427,73 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                     cv2.circle(frame, center, 2, (0, 0, 255), -1)  # draw the center of the detected armor board
                     #print("Target at (x,y) = (" + str(X) + "," + str(Y) + ")")
 
+
+                    '''collect potential targets' info'''
+                    target_Dict = dict()
+                    target_Dict["depth"] = float(tvec[2][0])
+                    target_Dict["Yaw"] = Yaw
+                    target_Dict["Pitch"] = Pitch
+                    target_Dict["imgPoints"] = imgPoints
+                    potential_Targets.append(target_Dict)
+
         # else:
         # print("Looking for Targets...")
+
+
+        return potential_Targets
+
+def targetsFilter(potential_Targetsets, frame):
+    '''
+    target with Number & greatest credits wins in filter process
+    Credit Consideration: Area, Depth, Pitch, Yaw
+    Credit Scale: 1 - 3
+    '''
+    max_Credit = 0
+    best_Target = [] # order: [depth, Yaw, Pitch, imgpoints]
+    for target in potential_Targetsets:
+        depth = float(target.get("depth", 0))
+        Yaw = float(target.get("Yaw", 0))
+        Pitch = float(target.get("Pitch", 0))
+        imgPoints = target.get("imgPoints", 0)
+
+        # target with greatest credits wins in filter process;total_Credit = depth credit + angle credit
+        depth_Credit = 0
+        angle_Credit = 0
+
+
+        """get area; distort caused large variation; failed so far"""
+        '''
+        dim = np.zeros(frame.shape[:2], dtype="uint8")  #(h,w)=iamge.shape[:2]
+        polygon_mask = cv2.fillPoly(dim, np.array([imgPoints.astype(np.int32)]), 255)
+        area = np.sum(np.greater(polygon_mask, 0))
+        print(area)
+        '''
+
+        """Assess Depth"""
+        if depth < 1800:
+            depth_Credit += 5
+        elif depth < 2500:
+            depth_Credit += 3
+
+        """Assess Angle"""
+        if abs(Yaw) < 5 or abs(Pitch) < 10:
+            angle_Credit += 4
+        elif abs(Yaw) < 10 or abs(Pitch) < 15:
+            angle_Credit += 3
+        elif abs(Yaw) < 20 or abs(Pitch) < 20:
+            angle_Credit += 3
+        elif abs(Yaw) < 30 or abs(Pitch) < 30:
+            angle_Credit += 2
+
+        """evaluate score"""
+        if (depth_Credit + angle_Credit) > max_Credit:
+            max_Credit = (depth_Credit + angle_Credit)
+            best_Target = [depth, Yaw, Pitch, imgPoints]
+
+    return best_Target
+
+
+
 
 
 def findVerticesOrder(vertices):
@@ -442,9 +510,42 @@ def findVerticesOrder(vertices):
     return np.concatenate((Left, Right), axis=0)
 
 
+def decimalToHexSerial(Yaw,Pitch):
+    '''for int part'''
+    int_Pitch = int(Pitch + 50) # for check sum
+    hex_int_Pitch = str(hex(int_Pitch))  # form: 0xa; encode -45 degree to -45+50=5 degree
+    hex_int_Pitch = ('0' + hex_int_Pitch[2:])[-2:]  # delete '0x'
+
+    int_Yaw = int(Yaw + 50) # for check sum
+    hex_int_Yaw = str(hex(int_Yaw))  # encode -45 degree to -45+50=5 degree
+    hex_int_Yaw = ('0' + hex_int_Yaw[2:])[-2:]
+
+    '''for decimal part to serial hex: input -314.159 output ===> 10'''
+    deci_Pitch = format(math.modf(abs(Pitch))[0], '.2f')  # decimal part is always positive
+    str_deci_Pitch = str(deci_Pitch)[-2:]
+    int_deci_Pitch = int(str_deci_Pitch)  # for check sum
+    hex_deci_Pitch = str(hex(int_deci_Pitch))
+    hex_deci_Pitch = ('0' + hex_deci_Pitch[2:])[-2:]  # to transfer by serial; form:314.159 => 16
+
+    deci_Yaw = format(math.modf(abs(Yaw))[0], '.2f')  # decimal part is always positive
+    str_deci_Yaw = str(deci_Yaw)[-2:]
+    int_deci_Yaw = int(str_deci_Yaw)  # for check sum
+    hex_deci_Yaw = str(hex(int_deci_Yaw))
+    hex_deci_Yaw = ('0' + hex_deci_Yaw[2:])[-2:]  # to transfer by serial; form:314.159 => 16
+
+    int_sumAll = int_Pitch + int_Yaw + int_deci_Pitch + int_deci_Yaw
+    hex_sumAll = str(hex(int_sumAll))
+    hex_sumAll = ('0' + hex_sumAll[2:])[-2:]  #delete '0x'
+
+    serial_lst = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
+    return serial_lst
+
 def main():
     creatTrackbar()
-    setUpSerial()
+
+    ser = None
+    ser = serial.Serial('com3', 115200)
+
     fps = 0
 
     try:
@@ -462,7 +563,35 @@ def main():
             color_image = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
 
             binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
-            find_contours(binary, frame, fps)
+
+            potential_Targetsets = find_contours(binary, frame, fps) # get the list with all potential targets' info
+
+            if potential_Targetsets: # if returned any potential targets
+                final_Target = targetsFilter(potential_Targetsets,frame) # filter out fake & bad targets and lock on single approachable target
+
+                depth = float(final_Target[0])
+                Yaw = float(final_Target[1])
+                Pitch = float(final_Target[2])
+                if (-30 < Pitch < 30) and (-45 < Yaw < 45):
+
+                    '''
+                    all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
+                    return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
+                    '''
+                    serial_lst = decimalToHexSerial(Yaw,Pitch)
+
+                    send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+
+                    print("int pitch:" + serial_lst[0])
+                    print(serial_lst[2])
+                else:
+                    print("!!! Angle exceed limit !!!")
+
+
+
+            # format(1.23456, '.2f')
+
+
             cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
             cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
             cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
@@ -470,9 +599,12 @@ def main():
             cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
             cv2.imshow("original", frame)
 
+            #send_data(ser, tvec, Yaw, Pitch)
+            #print(tvec, Yaw, Pitch)
             cv2.waitKey(1)
             endtime = time.time()
             fps = 1 / (endtime - starttime)
+
     finally:
 
         # Stop streaming
@@ -509,7 +641,7 @@ if __name__ == "__main__":
     if device_product_line == 'L500':  # if not D455
         config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
     else:
-        config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 15)
+        config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
 
     # Start streaming
     pipeline.start(config)

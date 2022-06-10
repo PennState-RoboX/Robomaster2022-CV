@@ -4,7 +4,7 @@ def setUpSerial():
     ser = serial.Serial('/dev/ttyTHS2', 115200)
     #ser.open()
 
-def send_data(ser,angleA, angleB, angleC): #Angles are in Byte Formact
+def send_data(ser,hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll): #Angles are in Byte Formact
     #packet = b'\x0d' #header
     #packet = packet + angleA
     #packet = packet + angleB
@@ -16,12 +16,15 @@ def send_data(ser,angleA, angleB, angleC): #Angles are in Byte Formact
     #packet = packet + b'\x00'
     #packet = packet + b'\x04'
     #packet = packet + b'\x00'
-    packet = '0d'
-    packet = packet + angleA
-    packet = packet + angleB
-    packet = packet + angleC
-    packet = packet + '02'
-    packet = packet + '0a'
+    packet = 'A5'
+    packet = packet + '5A'
+    packet = packet + '09'
+    packet = packet + hex_int_Pitch
+    packet = packet + hex_deci_Pitch
+    packet = packet + hex_int_Yaw
+    packet = packet + hex_deci_Yaw
+    packet = packet + sumAll
+    packet = packet + 'FF'
     print(packet)
     packet = bytes.fromhex(packet)
     print(packet)
@@ -30,6 +33,7 @@ def send_data(ser,angleA, angleB, angleC): #Angles are in Byte Formact
 #ser = setUpSerial()
 #send_data(ser, "0x00")
 #send_data(ser, "0x06")
+'''
 ser = serial.Serial('/dev/ttyTHS2', 115200)
 
 while 1==1 :
@@ -38,3 +42,4 @@ while 1==1 :
 	send_data(ser,'01','09','06')
 	time.sleep(5)
 
+'''
