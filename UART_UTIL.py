@@ -16,23 +16,22 @@ def send_data(ser,hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumA
     #packet = packet + b'\x00'
     #packet = packet + b'\x04'
     #packet = packet + b'\x00'
-    packet = 'A5'
+    packet = 'A5' #Header Byte
     packet = packet + '5A'
-    packet = packet + '09'
+    packet = packet + '09' # Length of Packet
     packet = packet + hex_int_Pitch
     packet = packet + hex_deci_Pitch
     packet = packet + hex_int_Yaw
     packet = packet + hex_deci_Yaw
     packet = packet + sumAll
     packet = packet + 'FF'
-    print(packet)
+    print(packet) # Packat before Conversion
     packet = bytes.fromhex(packet)
-    print(packet)
+    print(packet) #Packet Get Sent
     ser.write(packet)
 
-#ser = setUpSerial()
-#send_data(ser, "0x00")
-#send_data(ser, "0x06")
+
+#Below are example of how to use this utility
 '''
 ser = serial.Serial('/dev/ttyTHS2', 115200)
 
