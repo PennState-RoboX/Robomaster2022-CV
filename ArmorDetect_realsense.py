@@ -536,7 +536,7 @@ def decimalToHexSerial(Yaw,Pitch):
     hex_deci_Yaw = str(hex(int_deci_Yaw))
     hex_deci_Yaw = ('0' + hex_deci_Yaw[2:])[-2:]  # to transfer by serial; form:314.159 => 16
 
-    int_sumAll = int_Pitch + int_Yaw + int_deci_Pitch + int_deci_Yaw
+    int_sumAll = int_Pitch + int_Yaw + int_deci_Pitch + int_deci_Yaw + 9
     hex_sumAll = str(hex(int_sumAll))
     hex_sumAll = ('0' + hex_sumAll[2:])[-2:]  #delete '0x'
 
@@ -588,7 +588,10 @@ def main():
                     #print("int pitch:" + serial_lst[0])
                     #print(serial_lst[2])
                 else:
+
                     print("!!! Angle exceed limit !!!")
+            else:
+                send_data(ser, '01', '01','01','01','01')
 
 
 
@@ -602,7 +605,7 @@ def main():
             cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
             cv2.imshow("original", frame)
 
-            #send_data(ser, tvec, Yaw, Pitch)
+
             #print(tvec, Yaw, Pitch)
             cv2.waitKey(1)
             endtime = time.time()
