@@ -489,8 +489,9 @@ def targetsFilter(potential_Targetsets, frame):
         if (depth_Credit + angle_Credit) > max_Credit:
             max_Credit = (depth_Credit + angle_Credit)
             best_Target = [depth, Yaw, Pitch, imgPoints]
+
     imgPoints = best_Target[3]
-    print(imgPoints[0][0])
+
     cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])), (int(imgPoints[3][0]), int(imgPoints[3][1])), (255, 255, 255), 2)
     cv2.line(frame, (int(imgPoints[2][0]), int(imgPoints[2][1])), (int(imgPoints[0][0]), int(imgPoints[0][1])), (255, 255, 255), 2)
     return best_Target
@@ -547,55 +548,167 @@ def main():
     creatTrackbar()
 
     ser = None
-    ser = serial.Serial('com3', 115200)
+    #ser = serial.Serial('com3', 115200)
 
     fps = 0
+    target_coor = []
+    lock = False  # whether found the best target or not
+    track_init_frame = None
 
     try:
+
         while True:
-            starttime = time.time()
-            # Wait for a coherent pair of frames: depth and color
-            frames = pipeline.wait_for_frames()
-            #depth_frame = frames.get_depth_frame()
-            color_frame = frames.get_color_frame()
-            if  not color_frame:
-                continue
 
-            # Convert images to numpy arrays
-            #depth_image = np.asanyarray(depth_frame.get_data())
-            color_image = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
 
-            binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
 
-            potential_Targetsets = find_contours(binary, frame, fps) # get the list with all potential targets' info
+            if lock == False:
 
-            if potential_Targetsets: # if returned any potential targets
-                final_Target = targetsFilter(potential_Targetsets,frame) # filter out fake & bad targets and lock on single approachable target
+                # starttime = time.time()
+                '''get an image'''
+                # Wait for a coherent pair of frames: depth and color
+                frames = pipeline.wait_for_frames()
+                # depth_frame = frames.get_depth_frame()
+                color_frame = frames.get_color_frame()
+                if not color_frame:
+                    continue
+                # Convert images to numpy arrays
+                # depth_image = np.asanyarray(depth_frame.get_data())
+                color_image = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
 
-                depth = float(final_Target[0])
-                Yaw = float(final_Target[1])
-                Pitch = float(final_Target[2])
-                if (-30 < Pitch < 30) and (-45 < Yaw < 45):
 
-                    '''
-                    all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
-                    return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
-                    '''
-                    serial_lst = decimalToHexSerial(Yaw,Pitch)
+                """Do detection"""
+                binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
 
-                    send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                potential_Targetsets = find_contours(binary, frame, fps) # get the list with all potential targets' info
 
-                    #print("int pitch:" + serial_lst[0])
-                    #print(serial_lst[2])
-                else:
+                if potential_Targetsets: # if returned any potential targets
+                    final_Target = targetsFilter(potential_Targetsets,frame) # filter out fake & bad targets and lock on single approachable target
 
-                    print("!!! Angle exceed limit !!!")
+                    depth = float(final_Target[0])
+                    Yaw = float(final_Target[1])
+                    Pitch = float(final_Target[2])
+                    imgPoints = final_Target[3]
+
+                    if (-30 < Pitch < 30) and (-45 < Yaw < 45):
+
+                        '''
+                        all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
+                        return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
+                        '''
+                        serial_lst = decimalToHexSerial(Yaw,Pitch)
+
+                        #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+
+                        lock = True # Successfully detect one target
+                        target_coor = [[int(imgPoints[0][0]), int(imgPoints[0][1])], [int(imgPoints[1][0]), int(imgPoints[1][1])], [int(imgPoints[2][0]), int(imgPoints[2][1])], [int(imgPoints[3][0]), int(imgPoints[3][1])]]#[bl,tl,tr,br]
+
+                        track_init_frame = color_image
+
+                    else:
+
+                        print("!!! Angle exceed limit !!!")
+                #else:
+                    #send_data(ser, '01', '01','01','01','01')
+
             else:
-                send_data(ser, '01', '01','01','01','01')
+                count = 0
+
+                """Start Tracking"""
+                tracker = cv2.legacy.TrackerCSRT_create()
+
+                target_coor_tl_x = int(target_coor[1][0])
+                target_coor_tl_y = int(target_coor[1][1])
+                target_coor_width = abs(int(target_coor[2][0]) - int(target_coor[1][0]))
+                target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
+
+                # bbox format:  (init_x,init_y,w,h)
+                bbox = (target_coor_tl_x, target_coor_tl_y, target_coor_width, target_coor_height)
+
+                #init the tracker with target detected frame & target coordinace
+                success = tracker.init(track_init_frame, bbox)
+                print(bbox)
+                cv2.imshow("orhhhl", frame)
+                cv2.waitKey(1)
+                # track target for 10 frames
+                while count < 10:
+
+                    # Wait for a coherent pair of frames: depth and color
+                    frames = pipeline.wait_for_frames()
+                    # depth_frame = frames.get_depth_frame()
+                    color_frame = frames.get_color_frame()
+                    if not color_frame:
+                        continue
+                    # Convert images to numpy arrays
+                    # depth_image = np.asanyarray(depth_frame.get_data())
+                    frame = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
 
 
 
-            # format(1.23456, '.2f')
+                    # Start timer
+                    timer = cv2.getTickCount()
+
+                    # Update tracker
+                    success, bbox = tracker.update(frame)
+
+                    # Solve angle
+                    armor_tl_x = bbox[0] #bbox = (init_x,init_y,w,h)
+                    armor_tl_y = bbox[1]
+                    armor_bl_x = bbox[0]
+                    armor_bl_y = bbox[1] + bbox[3]
+                    armor_tr_x = bbox[0] + bbox[2]
+                    armor_tr_y = bbox[1]
+                    armor_br_x = bbox[0] + bbox[2]
+                    armor_br_y = bbox[1] + bbox[3]
+                    imgPoints = np.array(
+                        [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
+                         [armor_br_x, armor_br_y]], dtype=np.float64)
+                    tvec, Yaw, Pitch = solve_Angle455(imgPoints)
+
+
+                    # Calculate FPS
+                    fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer);
+
+                    # Draw bounding box
+                    if success:
+                        # Tracking success
+                        p1 = (int(bbox[0]), int(bbox[1]))
+                        p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+                        cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+                    else:
+                        # Tracking failure
+                        cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
+                                    (0, 0, 255), 2)
+
+                    # Display tracker type on frame
+                    cv2.putText(frame, " Tracker", (600, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2);
+
+                    # Display FPS on frame
+                    cv2.putText(frame, "FPS : " + str(int(fps)), (600, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50),
+                                2);
+
+
+                    cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
+                    cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+
+
+                    depth = str(tvec[2][0]) + 'mm'
+                    cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+
+                    cv2.imshow("original", frame)
+                    cv2.waitKey(1)
+
+                    count += 1
+
+                lock = False
+
+
+
 
 
             cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
@@ -605,11 +718,13 @@ def main():
             cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
             cv2.imshow("original", frame)
 
+                #cv2.imshow("track_init_frame", track_init_frame)
+            cv2.waitKey(1)
 
             #print(tvec, Yaw, Pitch)
-            cv2.waitKey(1)
-            endtime = time.time()
-            fps = 1 / (endtime - starttime)
+
+            #endtime = time.time()
+            #fps = 1 / (endtime - starttime)
 
     finally:
 
