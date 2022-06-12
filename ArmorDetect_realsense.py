@@ -494,6 +494,7 @@ def targetsFilter(potential_Targetsets, frame):
 
     cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])), (int(imgPoints[3][0]), int(imgPoints[3][1])), (255, 255, 255), 2)
     cv2.line(frame, (int(imgPoints[2][0]), int(imgPoints[2][1])), (int(imgPoints[0][0]), int(imgPoints[0][1])), (255, 255, 255), 2)
+
     return best_Target
 
 
@@ -548,7 +549,7 @@ def main():
     creatTrackbar()
 
     ser = None
-    #ser = serial.Serial('com3', 115200)
+    ser = serial.Serial('com3', 115200)
 
     fps = 0
     target_coor = []
@@ -597,7 +598,7 @@ def main():
                         '''
                         serial_lst = decimalToHexSerial(Yaw,Pitch)
 
-                        #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                        send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
                         lock = True # Successfully detect one target
                         target_coor = [[int(imgPoints[0][0]), int(imgPoints[0][1])], [int(imgPoints[1][0]), int(imgPoints[1][1])], [int(imgPoints[2][0]), int(imgPoints[2][1])], [int(imgPoints[3][0]), int(imgPoints[3][1])]]#[bl,tl,tr,br]
@@ -607,8 +608,8 @@ def main():
                     else:
 
                         print("!!! Angle exceed limit !!!")
-                #else:
-                    #send_data(ser, '01', '01','01','01','01')
+                else:
+                    send_data(ser, '32', '32','32','32','d1')
 
             else:
                 count = 0
@@ -622,15 +623,16 @@ def main():
                 target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
 
                 # bbox format:  (init_x,init_y,w,h)
-                bbox = (target_coor_tl_x, target_coor_tl_y, target_coor_width, target_coor_height)
+                bbox = (target_coor_tl_x -20, target_coor_tl_y -20, target_coor_width +40, target_coor_height+40 )
 
                 #init the tracker with target detected frame & target coordinace
                 success = tracker.init(track_init_frame, bbox)
-                print(bbox)
-                cv2.imshow("orhhhl", frame)
-                cv2.waitKey(1)
+
+                #cv2.imshow("orhhhl", frame)
+                #cv2.waitKey(1)
+
                 # track target for 10 frames
-                while count < 10:
+                while count < 0:
 
                     # Wait for a coherent pair of frames: depth and color
                     frames = pipeline.wait_for_frames()
@@ -650,26 +652,27 @@ def main():
                     # Update tracker
                     success, bbox = tracker.update(frame)
 
-                    # Solve angle
-                    armor_tl_x = bbox[0] #bbox = (init_x,init_y,w,h)
-                    armor_tl_y = bbox[1]
-                    armor_bl_x = bbox[0]
-                    armor_bl_y = bbox[1] + bbox[3]
-                    armor_tr_x = bbox[0] + bbox[2]
-                    armor_tr_y = bbox[1]
-                    armor_br_x = bbox[0] + bbox[2]
-                    armor_br_y = bbox[1] + bbox[3]
-                    imgPoints = np.array(
-                        [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
-                         [armor_br_x, armor_br_y]], dtype=np.float64)
-                    tvec, Yaw, Pitch = solve_Angle455(imgPoints)
 
 
-                    # Calculate FPS
-                    fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer);
-
-                    # Draw bounding box
+                    # Solve Angle & Draw bounding box
                     if success:
+                        # Solve angle
+                        armor_tl_x = bbox[0]  # bbox = (init_x,init_y,w,h)
+                        armor_tl_y = bbox[1]
+                        armor_bl_x = bbox[0]
+                        armor_bl_y = bbox[1] + bbox[3]
+                        armor_tr_x = bbox[0] + bbox[2]
+                        armor_tr_y = bbox[1]
+                        armor_br_x = bbox[0] + bbox[2]
+                        armor_br_y = bbox[1] + bbox[3]
+                        imgPoints = np.array(
+                            [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
+                             [armor_br_x, armor_br_y]], dtype=np.float64)
+                        tvec, Yaw, Pitch = solve_Angle455(imgPoints)
+
+                        # Calculate FPS
+                        fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer);
+
                         # Tracking success
                         p1 = (int(bbox[0]), int(bbox[1]))
                         p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
@@ -678,6 +681,9 @@ def main():
                         # Tracking failure
                         cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
                                     (0, 0, 255), 2)
+
+                        # send failure data(send 0 degree to make gimbal stop)
+                        send_data(ser, '32', '32', '32', '32', 'd1')
 
                     # Display tracker type on frame
                     cv2.putText(frame, " Tracker", (600, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2);
@@ -700,10 +706,19 @@ def main():
                     cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
                     cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
+                    # real Yaw time line
+                    cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
+
+
                     cv2.imshow("original", frame)
                     cv2.waitKey(1)
 
                     count += 1
+
+                    serial_lst = decimalToHexSerial(float(Yaw), float(Pitch))
+                    print(Yaw,Pitch)
+
+                    send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
                 lock = False
 
@@ -716,6 +731,10 @@ def main():
             cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
             cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
             cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+
+            # real Yaw time line
+            cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
+
             cv2.imshow("original", frame)
 
                 #cv2.imshow("track_init_frame", track_init_frame)
