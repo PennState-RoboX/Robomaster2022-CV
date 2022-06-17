@@ -8,7 +8,7 @@ from UART_UTIL import setUpSerial, send_data
 from solve_Angle import solve_Angle455
 from CamInfo_D455 import undistort
 import time
-
+from KalmanFilterClass import KalmanFilter
 
 def nothing(x):
     pass
@@ -140,7 +140,8 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
     first_data = []  # include all potential light bar's contourArea information dict by dict
     second_data1 = []
     second_data2 = []
-    potential_Targets = []  # unit: per imgPoints(np.array([[bl], [tl], [tr],[br]]))
+    potential_Targets = []  # all potential target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
+    target_Dict = dict() # per target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
 
     if length > 0:
         # collect info for every contour's rectangle
@@ -192,16 +193,16 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
 
             """filer out undesired rectangle, only keep lightBar-like shape"""
             """90--->45-->0-center(horizontally)->90-->45-->0"""
-            if (float(rh / rw) >= 1.5) and (float(rh / rw) <= 8) \
-                    and (float(z) <= 15 and float(z) >= 0):  # filer out undesired rectangle, only keep lightBar-like shape
+            if (float(rh / rw) >= 1.1) and (float(rh / rw) <= 8) \
+                    and (float(z) <= 11 and float(z) >= 0):  # filer out undesired rectangle, only keep lightBar-like shape
 
                 first_data.append(data_dict)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
                 #print(float(z))
             # The rh will become rw when center(horizontally)->90-->45-->0, rw below will represent the minRectangle's height now
-            elif (float(rh / rw) >= 0.125) and (float(rh / rw) <= 0.7) \
-                    and (float(z) <= 90 and float(z) >= 75):
+            elif (float(rh / rw) >= 0.125) and (float(rh / rw) <= 0.9) \
+                    and (float(z) <= 90 and float(z) >= 79):
 
                 '''switch rw and rh back to normal'''
                 temp = data_dict["rh"]
@@ -230,7 +231,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                 data_rwc = float(first_data[nextRect].get("rw", 0))
 
                 if (abs(data_ryi - data_ryc) <= 3 * ((data_rhi + data_rhc) / 2)) \
-                        and (abs(data_rhi - data_rhc) <= 0.2 * max(data_rhi, data_rhc)) \
+                        and (abs(data_rhi - data_rhc) <= 0.5 * max(data_rhi, data_rhc)) \
                         and (abs(data_rxi - data_rxc) <= 3 * ((data_rhi + data_rhc) / 2)) \
                         and (abs(data_rzi - data_rzc)) < 10:
                     second_data1.append(first_data[i])
@@ -310,6 +311,14 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                              [armor_br_x, armor_br_y]], dtype=np.float64)
                         tvec, Yaw, Pitch = solve_Angle455(imgPoints)
 
+                        '''collect potential targets' info'''
+
+
+                        target_Dict["depth"] = float(tvec[2][0])
+                        target_Dict["Yaw"] = Yaw
+                        target_Dict["Pitch"] = Pitch
+                        target_Dict["imgPoints"] = imgPoints
+                        potential_Targets.append(target_Dict)
 
                     else:  # point 2 is the rectangle vertices of right light bar
                         right_lightBar_len = abs(rect2_param[2][1] - rect2_param[3][1])  # (TR - BR)y-axis
@@ -338,7 +347,14 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                              [armor_br_x, armor_br_y]], dtype=np.float64)
                         tvec, Yaw, Pitch = solve_Angle455(imgPoints)
 
+                        '''collect potential targets' info'''
 
+
+                        target_Dict["depth"] = float(tvec[2][0])
+                        target_Dict["Yaw"] = Yaw
+                        target_Dict["Pitch"] = Pitch
+                        target_Dict["imgPoints"] = imgPoints
+                        potential_Targets.append(target_Dict)
 
 
 
@@ -389,7 +405,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
 
                     cv2.imshow("dila_img", gray_img)
 
-                    #cv2.imwrite('c:/Users/Zhuang/Desktop/RM2022\DataSet\General/{}.png'.format(num), gray_img)
+                    #cv2.imwrite('c:/Users/Shiao/Desktop/4/{}.png'.format(num), gray_img)
                     num += 1
 
 
@@ -413,13 +429,13 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                     """calculate image's area"""
 
 
-                    depth = str(tvec[2][0]) + 'mm'
-                    cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # depth = str(tvec[2][0]) + 'mm'
+                    # cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    #cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
-                    cv2.putText(frame, "target:", (rectangle_x2, rectangle_y2 - 5), cv2.FONT_HERSHEY_SIMPLEX,
+                    cv2.putText(frame, "Potentials:", (rectangle_x2, rectangle_y2 - 5), cv2.FONT_HERSHEY_SIMPLEX,
                                 0.5, [255, 255, 255])
                     X = int((point2_2x + point1_4x) / 2)
                     Y = int((point2_2y + point1_4y) / 2)
@@ -427,14 +443,8 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                     cv2.circle(frame, center, 2, (0, 0, 255), -1)  # draw the center of the detected armor board
                     #print("Target at (x,y) = (" + str(X) + "," + str(Y) + ")")
 
+                    #print(potential_Targets)
 
-                    '''collect potential targets' info'''
-                    target_Dict = dict()
-                    target_Dict["depth"] = float(tvec[2][0])
-                    target_Dict["Yaw"] = Yaw
-                    target_Dict["Pitch"] = Pitch
-                    target_Dict["imgPoints"] = imgPoints
-                    potential_Targets.append(target_Dict)
 
         # else:
         # print("Looking for Targets...")
@@ -442,7 +452,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
 
         return potential_Targets
 
-def targetsFilter(potential_Targetsets, frame):
+def targetsFilter(potential_Targetsets, frame,last_target_x):
     '''
     target with Number & greatest credits wins in filter process
     Credit Consideration: Area, Depth, Pitch, Yaw
@@ -450,11 +460,39 @@ def targetsFilter(potential_Targetsets, frame):
     '''
     max_Credit = 0
     best_Target = [] # order: [depth, Yaw, Pitch, imgpoints]
+    all_distance_diff = [] # every target's x-axis distance between last target
+
+    if last_target_x != None:
+        for target in potential_Targetsets:
+            imgPoints = target.get("imgPoints", 0)
+
+            # current target's x-axis in a 1280*720 frame
+            curr_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0]) / 2
+
+            all_distance_diff.append(abs(curr_target_x - last_target_x))
+        sort_index = np.argsort(all_distance_diff) # order: small to large
+        closest_target = potential_Targetsets[sort_index[0]]
+        depth = float(closest_target.get("depth", 0))
+        Yaw = float(closest_target.get("Yaw", 0))
+        Pitch = float(closest_target.get("Pitch", 0))
+        imgPoints = closest_target.get("imgPoints", 0)
+        best_Target = [depth, Yaw, Pitch, imgPoints]
+
+
+        return best_Target
+
+
+
     for target in potential_Targetsets:
         depth = float(target.get("depth", 0))
         Yaw = float(target.get("Yaw", 0))
         Pitch = float(target.get("Pitch", 0))
         imgPoints = target.get("imgPoints", 0)
+        sub_x = target.get("sub_x", 0) # sub_x is abs(curr_target_x - last_target_x)
+
+        # current target's x-axis in a 1280*720 frame
+        curr_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0]) / 2
+        #print("curretn: ",curr_target_x, "last: ", last_target_x)
 
         # target with greatest credits wins in filter process;total_Credit = depth credit + angle credit
         depth_Credit = 0
@@ -468,6 +506,7 @@ def targetsFilter(potential_Targetsets, frame):
         area = np.sum(np.greater(polygon_mask, 0))
         print(area)
         '''
+        """Assess distance between last target & current target"""
 
         """Assess Depth"""
         if depth < 1800:
@@ -476,14 +515,15 @@ def targetsFilter(potential_Targetsets, frame):
             depth_Credit += 3
 
         """Assess Angle"""
+
         if abs(Yaw) < 5 or abs(Pitch) < 10:
-            angle_Credit += 4
+            angle_Credit += 100
         elif abs(Yaw) < 10 or abs(Pitch) < 15:
             angle_Credit += 3
         elif abs(Yaw) < 20 or abs(Pitch) < 20:
-            angle_Credit += 3
-        elif abs(Yaw) < 30 or abs(Pitch) < 30:
             angle_Credit += 2
+        elif abs(Yaw) < 30 or abs(Pitch) < 30:
+            angle_Credit += 1
 
         """evaluate score"""
         if (depth_Credit + angle_Credit) > max_Credit:
@@ -491,9 +531,8 @@ def targetsFilter(potential_Targetsets, frame):
             best_Target = [depth, Yaw, Pitch, imgPoints]
 
     imgPoints = best_Target[3]
-
-    cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])), (int(imgPoints[3][0]), int(imgPoints[3][1])), (255, 255, 255), 2)
-    cv2.line(frame, (int(imgPoints[2][0]), int(imgPoints[2][1])), (int(imgPoints[0][0]), int(imgPoints[0][1])), (255, 255, 255), 2)
+    #cv2.line(frame, (int(imgPoints[1][0]+10), int(imgPoints[1][1])), (int(imgPoints[3][0]+10), int(imgPoints[3][1])), (255, 255, 255), 2)
+    #cv2.line(frame, (int(imgPoints[2][0]+10), int(imgPoints[2][1])), (int(imgPoints[0][0]+10), int(imgPoints[0][1])), (255, 255, 255), 2)
 
     return best_Target
 
@@ -548,14 +587,21 @@ def decimalToHexSerial(Yaw,Pitch):
 def main():
     creatTrackbar()
 
+    #test Kalman Filter Opencv
+    kf = KalmanFilter()
+
     ser = None
-    ser = serial.Serial('com3', 115200)
+    #ser = serial.Serial('com3', 115200)
 
     fps = 0
     target_coor = []
     lock = False  # whether found the best target or not
     track_init_frame = None
+    last_target_x = None
+    last_target_y = None
 
+    # counter for kalman 3 correct then 1 predict
+    countKalman = 1
     try:
 
         while True:
@@ -563,6 +609,8 @@ def main():
 
 
             if lock == False:
+                #start timer
+                timer1 = cv2.getTickCount()
 
                 # starttime = time.time()
                 '''get an image'''
@@ -583,12 +631,25 @@ def main():
                 potential_Targetsets = find_contours(binary, frame, fps) # get the list with all potential targets' info
 
                 if potential_Targetsets: # if returned any potential targets
-                    final_Target = targetsFilter(potential_Targetsets,frame) # filter out fake & bad targets and lock on single approachable target
+                    if len(potential_Targetsets)>1:
+                        final_Target = targetsFilter(potential_Targetsets,frame,last_target_x) # filter out fake & bad targets and lock on single approachable target
 
-                    depth = float(final_Target[0])
-                    Yaw = float(final_Target[1])
-                    Pitch = float(final_Target[2])
-                    imgPoints = final_Target[3]
+                        depth = float(final_Target[0])
+                        Yaw = float(final_Target[1])
+                        Pitch = float(final_Target[2])
+                        imgPoints = final_Target[3]
+                    else:
+                        final_Target = potential_Targetsets[0]
+
+                        depth = float(final_Target.get("depth", 0))
+                        Yaw = float(final_Target.get("Yaw", 0))
+                        Pitch = float(final_Target.get("Pitch", 0))
+                        imgPoints = final_Target.get("imgPoints", 0)
+
+                    # get last target's x-position in a 1280*720 frame/ used for function "targetsFilter()"
+                    last_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0])/2 #[2][0]=tr [0][0]=bl
+
+                    #last_target_y = imgPoints[0][1] - imgPoints[3][1]
 
                     if (-30 < Pitch < 30) and (-45 < Yaw < 45):
 
@@ -598,18 +659,49 @@ def main():
                         '''
                         serial_lst = decimalToHexSerial(Yaw,Pitch)
 
-                        send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                        #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
                         lock = True # Successfully detect one target
                         target_coor = [[int(imgPoints[0][0]), int(imgPoints[0][1])], [int(imgPoints[1][0]), int(imgPoints[1][1])], [int(imgPoints[2][0]), int(imgPoints[2][1])], [int(imgPoints[3][0]), int(imgPoints[3][1])]]#[bl,tl,tr,br]
 
                         track_init_frame = color_image
 
+                        cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])),
+                                 (int(imgPoints[3][0]), int(imgPoints[3][1])),
+                                 (33, 255, 255), 2)
+                        cv2.line(frame, (int(imgPoints[2][0]), int(imgPoints[2][1])),
+                                 (int(imgPoints[0][0]), int(imgPoints[0][1])),
+                                 (33, 255, 255), 2)
+                        cv2.putText(frame, str(depth), (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+
+                        """test Kalman Filter"""
+                        X = int((imgPoints[0][0] + imgPoints[2][0]) / 2)
+                        Y = int((imgPoints[0][1] + imgPoints[2][1]) / 2)
+
+                        kf.predict()
+                        kf.correct(X, Y)
+                        predicted = kf.predict(5)
+                        # predicted = kf.predict()
+                        # kf.correct(predicted[0],predicted[1])
+                        # predicted = kf.predict()
+
+
+
+
+
+                        print(predicted[0],predicted[1])
+
+
+                        cv2.circle(frame, (int(predicted[0]), predicted[1]), 5, (255, 255, 0), 4)
                     else:
 
                         print("!!! Angle exceed limit !!!")
-                else:
-                    send_data(ser, '32', '32','32','32','d1')
+                        # Calculate FPS
+                fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer1);
+                #else:
+                    #send_data(ser, '32', '32','32','32','d1')
 
             else:
                 count = 0
@@ -623,7 +715,7 @@ def main():
                 target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
 
                 # bbox format:  (init_x,init_y,w,h)
-                bbox = (target_coor_tl_x -20, target_coor_tl_y -20, target_coor_width +40, target_coor_height+40 )
+                bbox = (target_coor_tl_x-target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10, target_coor_height)
 
                 #init the tracker with target detected frame & target coordinace
                 success = tracker.init(track_init_frame, bbox)
@@ -632,7 +724,7 @@ def main():
                 #cv2.waitKey(1)
 
                 # track target for 10 frames
-                while count < 0:
+                while count < 2:
 
                     # Wait for a coherent pair of frames: depth and color
                     frames = pipeline.wait_for_frames()
@@ -677,37 +769,38 @@ def main():
                         p1 = (int(bbox[0]), int(bbox[1]))
                         p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                         cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+
+                        # Display tracker type on frame
+                        cv2.putText(frame, " Tracker", (600, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2);
+
+                        # Display FPS on frame
+                        cv2.putText(frame, "FPS : " + str(int(fps)), (600, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
+                                    (50, 170, 50),2);
+
+                        cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
+                        cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+
+                        depth = str(tvec[2][0]) + 'mm'
+                        cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+
                     else:
                         # Tracking failure
                         cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
                                     (0, 0, 255), 2)
 
                         # send failure data(send 0 degree to make gimbal stop)
-                        send_data(ser, '32', '32', '32', '32', 'd1')
-
-                    # Display tracker type on frame
-                    cv2.putText(frame, " Tracker", (600, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2);
-
-                    # Display FPS on frame
-                    cv2.putText(frame, "FPS : " + str(int(fps)), (600, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50),
-                                2);
+                        #send_data(ser, '32', '32', '32', '32', 'd1')
 
 
-                    cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
-                    cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-
-
-                    depth = str(tvec[2][0]) + 'mm'
-                    cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
                     # real Yaw time line
-                    cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
+                    #cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
 
                     cv2.imshow("original", frame)
@@ -716,9 +809,9 @@ def main():
                     count += 1
 
                     serial_lst = decimalToHexSerial(float(Yaw), float(Pitch))
-                    print(Yaw,Pitch)
+                    #print(Yaw,Pitch)
 
-                    send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                    #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
                 lock = False
 
@@ -731,13 +824,15 @@ def main():
             cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
             cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
             cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+
 
             # real Yaw time line
-            cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
+            #cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
             cv2.imshow("original", frame)
 
-                #cv2.imshow("track_init_frame", track_init_frame)
+                #cv2.imshow("track_init_fr、ame", track_init_frame)
             cv2.waitKey(1)
 
             #print(tvec, Yaw, Pitch)
@@ -754,7 +849,7 @@ def main():
 if __name__ == "__main__":
     num = 0  # for collecting dataset, pictures' names
     """Declare your desired target color here"""
-    targetColor = 1  # Red = 1 ; Blue = 0
+    targetColor = 0  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
     # Configure depth and color streams
@@ -790,6 +885,6 @@ if __name__ == "__main__":
     sensor = pipeline.get_active_profile().get_device().query_sensors()[1]
 
     # Set the exposure anytime during the operation
-    sensor.set_option(rs.option.exposure, 8.000)
+    sensor.set_option(rs.option.exposure, 2.000)
 
     main()
