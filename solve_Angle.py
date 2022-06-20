@@ -33,15 +33,16 @@ def solve_AngleDualLeft(imgPoints):
     #print("Pitch: ",Pitch)
     return tvec,Yaw, Pitch
 
-def solve_Angle455(imgPoints):
+def solve_Angle455(imgPoints, camera_config):
     width_size_half = 70 # small armor board's width(include light bar's width)
     height_size_half = 62.5 #  small armor board's height
     '''Here's D455 RGB's features with 1280*480'''
-    fx = 645.455984328821
-    cx = 643.077674664939
-    fy = 644.606305889468
-    cy = 357.730289611374
-    k1, k2, p1, p2, k3 = -0.0557535647706463, 0.0538700601952326, -0.000454149012521474, 0.00119677524381670, 0.0
+    fx = camera_config['fx']
+    cx = camera_config['cx']
+    fy = camera_config['fy']
+    cy = camera_config['cy']
+    k1, k2, p1, p2, k3 = camera_config['k1'], camera_config['k2'], camera_config['p1'],\
+                         camera_config['p2'], camera_config['k3']
     K = np.array([[fx, 0, cx],
                   [0, fy, cy],
                   [0, 0, 1] ],

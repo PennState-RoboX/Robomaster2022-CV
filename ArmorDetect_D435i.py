@@ -8,7 +8,10 @@ from UART_UTIL import setUpSerial, send_data
 from solve_Angle import solve_Angle455
 from CamInfo_D455 import undistort
 import time
+from camera_params import camera_params
 from KalmanFilterClass import KalmanFilter
+
+active_cam_config = None
 
 def nothing(x):
     pass
@@ -343,7 +346,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         imgPoints = np.array(
                             [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                              [armor_br_x, armor_br_y]], dtype=np.float64)
-                        tvec, Yaw, Pitch = solve_Angle455(imgPoints)
+                        tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
 
                         '''collect potential targets' info'''
 
@@ -378,7 +381,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         imgPoints = np.array(
                             [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                              [armor_br_x, armor_br_y]], dtype=np.float64)
-                        tvec, Yaw, Pitch = solve_Angle455(imgPoints)
+                        tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
 
                         '''collect potential targets' info'''
 
@@ -801,7 +804,7 @@ def main():
                         imgPoints = np.array(
                             [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                              [armor_br_x, armor_br_y]], dtype=np.float64)
-                        tvec, Yaw, Pitch = solve_Angle455(imgPoints)
+                        tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
 
                         # Calculate FPS
                         fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer);
@@ -913,7 +916,7 @@ if __name__ == "__main__":
     pipeline_wrapper = rs.pipeline_wrapper(pipeline)
     pipeline_profile = config.resolve(pipeline_wrapper)
     device = pipeline_profile.get_device()
-    device_product_line = str(device.get_info(rs.camera_info.product_line))
+    device_name = str(device.get_info(rs.camera_info.name))
 
     found_rgb = False
     for s in device.sensors:
@@ -926,10 +929,8 @@ if __name__ == "__main__":
 
     #config.enable_stream(rs.stream.depth, 640, 360, rs.format.z16, 30)
 
-    if device_product_line == 'L500':  # if not D455
-        config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
-    else:
-        config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+    active_cam_config = camera_params[device_name]
+    config.enable_stream(rs.stream.color, active_cam_config['capture_res'][0], active_cam_config['capture_res'][1], rs.format.bgr8, 30)
 
     # Start streaming
     pipeline.start(config)
@@ -938,6 +939,6 @@ if __name__ == "__main__":
     sensor = pipeline.get_active_profile().get_device().query_sensors()[1]
 
     # Set the exposure anytime during the operation
-    sensor.set_option(rs.option.exposure, 15.000 if targetColor else 5.0)
+    sensor.set_option(rs.option.exposure, active_cam_config['exposure']['red' if targetColor else 'blue'])
 
     main()
