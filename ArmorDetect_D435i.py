@@ -149,7 +149,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
     second_data1 = []
     second_data2 = []
     potential_Targets = []  # all potential target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
-    target_Dict = dict() # per target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
+    # target_Dict = dict() # per target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
 
     if length > 0:
         # collect info for every contour's rectangle
@@ -348,10 +348,9 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         '''collect potential targets' info'''
 
 
-                        target_Dict["depth"] = float(tvec[2][0])
-                        target_Dict["Yaw"] = Yaw
-                        target_Dict["Pitch"] = Pitch
-                        target_Dict["imgPoints"] = imgPoints
+                        target_Dict = {"depth": float(tvec[2][0]),
+                                        "Yaw": Yaw, "Pitch": Pitch,
+                                        "imgPoints": imgPoints}
                         potential_Targets.append(target_Dict)
 
                     else:  # point 2 is the rectangle vertices of right light bar
@@ -383,11 +382,9 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
 
                         '''collect potential targets' info'''
 
-
-                        target_Dict["depth"] = float(tvec[2][0])
-                        target_Dict["Yaw"] = Yaw
-                        target_Dict["Pitch"] = Pitch
-                        target_Dict["imgPoints"] = imgPoints
+                        target_Dict = {"depth": float(tvec[2][0]),
+                                       "Yaw": Yaw, "Pitch": Pitch,
+                                       "imgPoints": imgPoints}
                         potential_Targets.append(target_Dict)
 
 
