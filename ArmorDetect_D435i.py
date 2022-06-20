@@ -97,9 +97,17 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
             maskGB = cv2.bitwise_and(mask4_max_min, mask6)  # split channels,set threshold seperately, bitwise together
             #maskRGB = cv2.bitwise_and(maskGB, mask6)
         """
-        blue_high_light = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
-        blue_blur = cv2.blur(blue_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
-        ret, mask_processed = cv2.threshold(blue_blur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
+        # blue_high_light = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
+        # blue_blur = cv2.blur(blue_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
+        # ret, mask_processed = cv2.threshold(blue_blur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
+        # blue_high_light = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
+        # blue_blur = cv2.blur(blue_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
+        # ret, mask_processed = cv2.threshold(blue_blur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
+        ret1, mask1 = cv2.threshold(R, 200, 255, cv2.THRESH_BINARY_INV)
+        ret2, mask2 = cv2.threshold(G, 200, 255, cv2.THRESH_BINARY_INV)
+        ret3, mask3 = cv2.threshold(B, 180, 255, cv2.THRESH_BINARY)
+        mask_processed = cv2.bitwise_and(cv2.bitwise_and(mask1, mask2),
+                                         mask3)  # split channels,set threshold seperately, bitwise together
 
     """
     combine Method 1 and 2 together; needed or not?
@@ -155,14 +163,20 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                 continue
 
             rect = cv2.minAreaRect(contour)
-            rx, ry = rect[0]  # min Rectangle's center's (x,y)
-            rw = rect[1][0]  # rect's width
-            rh = rect[1][1]  # rect's height
-            z = rect[2]  # rect's Rotation angle, θ
+            # rx, ry = rect[0]  # min Rectangle's center's (x,y)
+            # rw = rect[1][0]  # rect's width
+            # rh = rect[1][1]  # rect's height
+            # z = rect[2]  # rect's Rotation angle, θ
 
             coor = cv2.boxPoints(rect)  # coordinates of the four vertices of the rectangle
 
             rect_param = findVerticesOrder(coor)  # output order: [bl,tl,tr,br]
+
+            rx, ry = np.average(rect_param, axis=0)
+            rw = np.linalg.norm(np.average(rect_param[2:, :], axis=0) - np.average(rect_param[:2, :], axis=0))
+            height_vec = np.average(rect_param[(0, 3), :], axis=0) - np.average(rect_param[(1, 2), :], axis=0)
+            rh = np.linalg.norm(height_vec)
+            z = 90.0 - np.rad2deg(np.arctan2(height_vec[1], height_vec[0]))
 
 
             x1 = rect_param[0][0]
@@ -201,26 +215,26 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
             """filer out undesired rectangle, only keep lightBar-like shape"""
             """90--->45-->0-center(horizontally)->90-->45-->0"""
             if (float(rh / rw) >= 1.1) and (float(rh / rw) <= 13) \
-                    and (float(z) <= 20 and float(z) >= 0):  # filer out undesired rectangle, only keep lightBar-like shape
+                    and (float(z) <= 20 and float(z) >= -20):  # filer out undesired rectangle, only keep lightBar-like shape
 
                 first_data.append(data_dict)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
                 #print(float(z))
             # The rh will become rw when center(horizontally)->90-->45-->0, rw below will represent the minRectangle's height now
-            elif (float(rh / rw) >= 0.075) and (float(rh / rw) <= 0.9) \
-                    and (float(z) <= 90 and float(z) >= 70):
-
-                '''switch rw and rh back to normal'''
-                temp = data_dict["rh"]
-                data_dict["rh"] = data_dict["rw"]
-                data_dict["rw"] = temp
-
-                #print(float(z))
-                first_data.append(data_dict)
-                box = np.int0(coor)
-                cv2.drawContours(frame, [box], -1, (0, 0, 255), 3)  # test countor minRectangle
-                # print(z)
+            # elif (float(rh / rw) >= 0.075) and (float(rh / rw) <= 0.9) \
+            #         and (float(z) <= 90 and float(z) >= 70):
+            #
+            #     '''switch rw and rh back to normal'''
+            #     temp = data_dict["rh"]
+            #     data_dict["rh"] = data_dict["rw"]
+            #     data_dict["rw"] = temp
+            #
+            #     #print(float(z))
+            #     first_data.append(data_dict)
+            #     box = np.int0(coor)
+            #     cv2.drawContours(frame, [box], -1, (0, 0, 255), 3)  # test countor minRectangle
+            #     # print(z)
 
         for i in range(len(first_data)):
 
@@ -239,7 +253,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
 
                 if (abs(data_ryi - data_ryc) <= 3 * ((data_rhi + data_rhc) / 2)) \
                         and (abs(data_rhi - data_rhc) <= 0.5 * max(data_rhi, data_rhc)) \
-                        and (abs(data_rxi - data_rxc) <= 3 * ((data_rhi + data_rhc) / 2)) \
+                        and (abs(data_rxi - data_rxc) <= 3.5 * ((data_rhi + data_rhc) / 2)) \
                         and (abs(data_rzi - data_rzc)) < 10:
                     second_data1.append(first_data[i])
                     second_data2.append(first_data[nextRect])
@@ -576,7 +590,7 @@ def findVerticesOrder(pts):
     Top = Top[np.argsort(Top[:, 0]), :]
 
     #print(Bottom[0], Top[0], Top[1], Bottom[1])
-    return [Bottom[0], Top[0], Top[1], Bottom[1]]
+    return np.stack([Bottom[0], Top[0], Top[1], Bottom[1]], axis=0)
 
 
 
@@ -891,7 +905,7 @@ def main():
 if __name__ == "__main__":
     num = 0  # for collecting dataset, pictures' names
     """Declare your desired target color here"""
-    targetColor = 1  # Red = 1 ; Blue = 0
+    targetColor = 0  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
     # Configure depth and color streams
@@ -927,6 +941,6 @@ if __name__ == "__main__":
     sensor = pipeline.get_active_profile().get_device().query_sensors()[1]
 
     # Set the exposure anytime during the operation
-    sensor.set_option(rs.option.exposure, 6.000)
+    sensor.set_option(rs.option.exposure, 15.000 if targetColor else 5.0)
 
     main()
