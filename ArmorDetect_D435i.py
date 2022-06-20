@@ -571,6 +571,10 @@ def targetsFilter(potential_Targetsets, frame,last_target_x):
     return best_Target
 
 
+def clipRect(rect_xywh, size):
+    x, y, w, h = rect_xywh
+    clipped_x, clipped_y = min(max(x, 0), size[0]), min(max(y, 0), size[1])
+    return clipped_x, clipped_y, min(max(w, 0), size[0] - clipped_x), min(max(h, 0), size[1] - clipped_y)
 
 
 
@@ -633,7 +637,7 @@ def main():
     kf = KalmanFilter()
 
     ser = None
-    #ser = serial.Serial('com3', 115200)
+    ser = serial.Serial('com3', 115200)
 
     fps = 0
     target_coor = []
@@ -641,16 +645,16 @@ def main():
     track_init_frame = None
     last_target_x = None
     last_target_y = None
+    success = False
+    tracker = None
+    tracking_frames = 0
+    max_tracking_frames = 15
 
-    # counter for kalman 3 correct then 1 predict
+    # counter for kalman
     countKalman = 1
     try:
 
         while True:
-
-
-
-            if lock == False:
                 #start timer
                 timer1 = cv2.getTickCount()
 
@@ -673,6 +677,7 @@ def main():
                 potential_Targetsets = find_contours(binary, frame, fps) # get the list with all potential targets' info
 
                 if potential_Targetsets: # if returned any potential targets
+                    success = True
                     if len(potential_Targetsets)>1:
                         final_Target = targetsFilter(potential_Targetsets,frame,last_target_x) # filter out fake & bad targets and lock on single approachable target
 
@@ -688,109 +693,45 @@ def main():
                         Pitch = float(final_Target.get("Pitch", 0))
                         imgPoints = final_Target.get("imgPoints", 0)
 
-                    # get last target's x-position in a 1280*720 frame/ used for function "targetsFilter()"
-                    last_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0])/2 #[2][0]=tr [0][0]=bl
+                    """init Tracking"""
+                    target_coor = [[int(imgPoints[0][0]), int(imgPoints[0][1])],
+                                   [int(imgPoints[1][0]), int(imgPoints[1][1])],
+                                   [int(imgPoints[2][0]), int(imgPoints[2][1])],
+                                   [int(imgPoints[3][0]), int(imgPoints[3][1])]]  # [bl,tl,tr,br]
 
-                    #last_target_y = imgPoints[0][1] - imgPoints[3][1]
-
-                    if (-30 < Pitch < 30) and (-45 < Yaw < 45):
-
-                        '''
-                        all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
-                        return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
-                        '''
-
-
-                        lock = True # Successfully detect one target
-                        target_coor = [[int(imgPoints[0][0]), int(imgPoints[0][1])], [int(imgPoints[1][0]), int(imgPoints[1][1])], [int(imgPoints[2][0]), int(imgPoints[2][1])], [int(imgPoints[3][0]), int(imgPoints[3][1])]]#[bl,tl,tr,br]
-
-                        track_init_frame = color_image
-
-                        cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])),
-                                 (int(imgPoints[3][0]), int(imgPoints[3][1])),
-                                 (255, 255, 255), 2)
-                        cv2.line(frame, (int(imgPoints[2][0]), int(imgPoints[2][1])),
-                                 (int(imgPoints[0][0]), int(imgPoints[0][1])),
-                                 (255, 255, 255), 2)
-                        cv2.putText(frame, str(depth), (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                        cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                        cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-
-                        """test Kalman Filter"""
-                        X = int((imgPoints[0][0] + imgPoints[2][0]) / 2)
-                        Y = int((imgPoints[0][1] + imgPoints[2][1]) / 2)
-
-
-                        kf.predict()
-                        kf.correct(X, Y)
-                        predicted = kf.predict(5)
-                        # predicted = kf.predict()
-                        # kf.correct(predicted[0],predicted[1])
-                        # predicted = kf.predict()
-
-                        serial_lst = decimalToHexSerial(Yaw, Pitch)
-
-                        #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                    tracking_frames = 0
 
 
 
+                    target_coor_tl_x = int(target_coor[1][0])
+                    target_coor_tl_y = int(target_coor[1][1])
+                    target_coor_width = abs(int(target_coor[2][0]) - int(target_coor[1][0]))
+                    target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
 
-                        #print(predicted[0],predicted[1])
+                    # bbox format:  (init_x,init_y,w,h)
+                    bbox = (target_coor_tl_x - target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10,
+                            target_coor_height)
+
+                    bbox = clipRect(bbox, (color_image.shape[0], color_image.shape[1]))
+
+                    # init the tracker with target detected frame & target coordinace
+
+                    if bbox[2] >= 50 and bbox[3] >= 50:
+                        tracker = cv2.TrackerKCF_create()
+                        tracker.init(color_image, tuple(int(x) for x in bbox))
+                else:
+                    # if tracking_frames == 0:
+                    #     sensor.set_option(rs.option.exposure, 88.000)
 
 
-                        cv2.circle(frame, (int(predicted[0]), predicted[1]), 5, (255, 255, 0), 4)
+                    if tracker is not None and tracking_frames < max_tracking_frames:
+                        tracking_frames += 1
+                        # Update tracker
+                        success, bbox = tracker.update(color_image)
                     else:
+                        success = False
 
-                        print("!!! Angle exceed limit !!!")
-                        # Calculate FPS
-                    fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer1);
-                #else:
-                    #send_data(ser, '32', '32','32','32','d1')
-
-            else:
-                count = 0
-
-                """Start Tracking"""
-                tracker = cv2.legacy.TrackerCSRT_create()
-
-                target_coor_tl_x = int(target_coor[1][0])
-                target_coor_tl_y = int(target_coor[1][1])
-                target_coor_width = abs(int(target_coor[2][0]) - int(target_coor[1][0]))
-                target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
-
-                # bbox format:  (init_x,init_y,w,h)
-                bbox = (target_coor_tl_x-target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10, target_coor_height)
-
-                #init the tracker with target detected frame & target coordinace
-                #success = tracker.init(track_init_frame, bbox)
-
-                #cv2.imshow("orhhhl", frame)
-                #cv2.waitKey(1)
-
-                # track target for 10 frames
-                while count < 0:
-
-                    # Wait for a coherent pair of frames: depth and color
-                    frames = pipeline.wait_for_frames()
-                    # depth_frame = frames.get_depth_frame()
-                    color_frame = frames.get_color_frame()
-                    if not color_frame:
-                        continue
-                    # Convert images to numpy arrays
-                    # depth_image = np.asanyarray(depth_frame.get_data())
-                    frame = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
-
-
-
-                    # Start timer
-                    timer = cv2.getTickCount()
-
-                    # Update tracker
-                    success, bbox = tracker.update(frame)
-
-
-
-                    # Solve Angle & Draw bounding box
+                    # if Tracking success, vSolve Angle & Draw bounding box
                     if success:
                         # Solve angle
                         armor_tl_x = bbox[0]  # bbox = (init_x,init_y,w,h)
@@ -805,96 +746,186 @@ def main():
                             [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                              [armor_br_x, armor_br_y]], dtype=np.float64)
                         tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
+                        depth = float(tvec[2][0])
 
-                        # Calculate FPS
-                        fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer);
-
-                        # Tracking success , Draw rect
+                        '''draw tracking bouding boxes'''
                         p1 = (int(bbox[0]), int(bbox[1]))
                         p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-                        #cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+                        cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+                if success:
 
-                        # Draw Cross
+
+                    # get last target's x-position in a 1280*720 frame/ used for function "targetsFilter()"
+                    last_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0])/2 #[2][0]=tr [0][0]=bl
+
+                    #last_target_y = imgPoints[0][1] - imgPoints[3][1]
+
+                    if (-30 < Pitch < 30) and (-45 < Yaw < 45):
+
+                        '''
+                        all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
+                        return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
+                        '''
+                        serial_lst = decimalToHexSerial(Yaw,Pitch)
+
+                        send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+
                         cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])),
                                  (int(imgPoints[3][0]), int(imgPoints[3][1])),
                                  (33, 255, 255), 2)
                         cv2.line(frame, (int(imgPoints[2][0]), int(imgPoints[2][1])),
                                  (int(imgPoints[0][0]), int(imgPoints[0][1])),
                                  (33, 255, 255), 2)
-
-                        # Display tracker type on frame
-                        cv2.putText(frame, " Tracker", (600, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2);
-
-                        # Display FPS on frame
-                        cv2.putText(frame, "FPS : " + str(int(fps)), (600, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
-                                    (50, 170, 50),2);
-
-                        cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
-                        cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                        cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                        cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                        cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-
-                        depth = str(tvec[2][0]) + 'mm'
-                        cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                        cv2.putText(frame, str(depth), (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
                         cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
                         cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                        cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
-                        # Send Data
-                        serial_lst = decimalToHexSerial(Yaw, Pitch)
+                        """test Kalman Filter"""
+                        X = int((imgPoints[0][0] + imgPoints[2][0]) / 2)
+                        Y = int((imgPoints[0][1] + imgPoints[2][1]) / 2)
 
-                        #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                        kf.predict()
+                        kf.correct(X, Y)
+                        predicted = kf.predict(1)
+                        # predicted = kf.predict()
+                        # kf.correct(predicted[0],predicted[1])
+                        # predicted = kf.predict()
+
+
+
+
+
+                        print(predicted[0],predicted[1])
+
+
+                        cv2.circle(frame, (int(predicted[0]), predicted[1]), 5, (255, 255, 0), 4)
                     else:
-                        # Tracking failure
-                        cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
-                                    (0, 0, 255), 2)
 
-                        # send failure data(send 0 degree to make gimbal stop)
-                        #send_data(ser, '32', '32', '32', '32', 'd1')
+                        print("!!! Angle exceed limit !!!")
+                        # Calculate FPS
+                    # fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer1)
+                    #
+                    # # Tracking success
+                    # p1 = (int(bbox[0]), int(bbox[1]))
+                    # p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+                    # cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+                    #
+                    # # Display tracker type on frame
+                    # cv2.putText(frame, " Tracker", (600, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2);
+                    #
+                    # # Display FPS on frame
+                    # cv2.putText(frame, "FPS : " + str(int(fps)), (600, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
+                    #             (50, 170, 50), 2);
+                    #
+                    # cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
+                    # cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    #
+                    # depth = str(tvec[2][0]) + 'mm'
+                    # cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    # cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                    #
+                    # serial_lst = decimalToHexSerial(float(Yaw), float(Pitch))
+                    # send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
+                else:
+                    # Tracking failure
+                    cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
+                                (0, 0, 255), 2)
 
+                    # send failure data(send 0 degree to make gimbal stop)
+                    # send_data(ser, '32', '32', '32', '32', 'd1')
 
                     # real Yaw time line
-                    #cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
+                    # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
+
+                cv2.imshow("original", frame)
+                cv2.waitKey(1)
+
+                # count += 1
+                #
+                #
+                # else:
+                # planB = True  # Do tracker to look for lost last target
+
+                # count = 0
+
+                # """Start Tracking"""
+                # tracker = cv2.legacy.TrackerCSRT_create()
+                #
+                # target_coor_tl_x = int(target_coor[1][0])
+                # target_coor_tl_y = int(target_coor[1][1])
+                # target_coor_width = abs(int(target_coor[2][0]) - int(target_coor[1][0]))
+                # target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
+                #
+                # # bbox format:  (init_x,init_y,w,h)
+                # bbox = (target_coor_tl_x-target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10, target_coor_height)
+                #
+                # #init the tracker with target detected frame & target coordinace
+                # success = tracker.init(track_init_frame, bbox)
+
+                #cv2.imshow("orhhhl", frame)
+                #cv2.waitKey(1)
+
+                # track target for 10 frames
+                #     while count < 1:
+                #
+                #         # Wait for a coherent pair of frames: depth and color
+                #         frames = pipeline.wait_for_frames()
+                #         # depth_frame = frames.get_depth_frame()
+                #         color_frame = frames.get_color_frame()
+                #         if not color_frame:
+                #             continue
+                #         # Convert images to numpy arrays
+                #         # depth_image = np.asanyarray(depth_frame.get_data())
+                #         frame = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
+                #
+                #
+                #
+                #         # Start timer
+                #         timer = cv2.getTickCount()
+                #
+                #
+                #
+                #
+                #
+                #
+                #         #print(Yaw,Pitch)
+                #
+                #     planB = False
+                #
+                # else: #can't find a target
+                #     # send_data(ser, '32', '32','32','32','d1')
+                #     print("can't find")
 
 
-                    cv2.imshow("original", frame)
-                    cv2.waitKey(1)
-
-                    count += 1
-
-                    serial_lst = decimalToHexSerial(float(Yaw), float(Pitch))
-                    #print(Yaw,Pitch)
-
-                    #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
-
-                lock = False
 
 
+                cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
+                cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
 
+                # real Yaw time line
+                #cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
-            cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
-            cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.imshow("original", frame)
 
+                    #cv2.imshow("track_init_fr、ame", track_init_frame)
+                cv2.waitKey(1)
 
-            # real Yaw time line
-            #cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
+                #print(tvec, Yaw, Pitch)
 
-            cv2.imshow("original", frame)
+                #endtime = time.time()
+                #fps = 1 / (endtime - starttime)
 
-                #cv2.imshow("track_init_fr、ame", track_init_frame)
-            cv2.waitKey(1)
-
-            #print(tvec, Yaw, Pitch)
-
-            #endtime = time.time()
-            #fps = 1 / (endtime - starttime)
 
     finally:
 
