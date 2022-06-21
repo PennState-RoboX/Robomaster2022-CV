@@ -8,10 +8,11 @@ from UART_UTIL import setUpSerial, send_data
 from solve_Angle import solve_Angle455
 from CamInfo_D455 import undistort
 import time
-from camera_params import camera_params
+from camera_params import camera_params, DepthSource
 from KalmanFilterClass import KalmanFilter
 
 active_cam_config = None
+frame_aligner = None
 
 def nothing(x):
     pass
@@ -144,7 +145,36 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
     return dst_dilate, frame
 
 
-def find_contours(binary, frame, fps):  # find contours and main screening section
+def get_3d_target_location(imgPoints, frame, depth_frame):
+    if active_cam_config['depth_source'] == DepthSource.PNP:
+        tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
+        target_Dict = {"depth": float(tvec[2][0]),
+                       "Yaw": Yaw, "Pitch": Pitch,
+                       "imgPoints": imgPoints}
+    elif active_cam_config['depth_source'] == DepthSource.STEREO:
+        assert depth_frame is not None
+        panel_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+        cv2.drawContours(panel_mask, [imgPoints.astype(np.int64)], -1, 1, thickness=cv2.FILLED)
+        panel_mask_scaled = cv2.resize(panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
+        meanDVal, _ = cv2.meanStdDev(depth_frame, mask=panel_mask_scaled)
+
+        imgPoints = cv2.undistortPoints(imgPoints, active_cam_config['camera_matrix'], active_cam_config['distort_coeffs'],
+                                        P=active_cam_config['camera_matrix'])[:, 0, :]
+        center_point = np.average(imgPoints, axis=0)
+        center_offset = center_point - np.array([active_cam_config['cx'], active_cam_config['cy']])
+        center_offset[1] = -center_offset[1]
+        angles = np.rad2deg(np.arctan2(center_offset, np.array([active_cam_config['fx'], active_cam_config['fy']])))
+
+        target_Dict = {"depth": meanDVal,
+                       "Yaw": angles[0], "Pitch": angles[1],
+                       "imgPoints": imgPoints}
+    else:
+        raise RuntimeError('Invalid depth source in camera config')
+
+    return target_Dict
+
+
+def find_contours(binary, frame, depth_frame, fps):  # find contours and main screening section
     global num
     contours, heriachy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     length = len(contours)
@@ -346,14 +376,7 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         imgPoints = np.array(
                             [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                              [armor_br_x, armor_br_y]], dtype=np.float64)
-                        tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
-
-                        '''collect potential targets' info'''
-
-
-                        target_Dict = {"depth": float(tvec[2][0]),
-                                        "Yaw": Yaw, "Pitch": Pitch,
-                                        "imgPoints": imgPoints}
+                        target_Dict = get_3d_target_location(imgPoints, frame, depth_frame)
                         potential_Targets.append(target_Dict)
 
                     else:  # point 2 is the rectangle vertices of right light bar
@@ -381,13 +404,10 @@ def find_contours(binary, frame, fps):  # find contours and main screening secti
                         imgPoints = np.array(
                             [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                              [armor_br_x, armor_br_y]], dtype=np.float64)
-                        tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
+
+                        target_Dict = get_3d_target_location(imgPoints, frame, depth_frame)
 
                         '''collect potential targets' info'''
-
-                        target_Dict = {"depth": float(tvec[2][0]),
-                                       "Yaw": Yaw, "Pitch": Pitch,
-                                       "imgPoints": imgPoints}
                         potential_Targets.append(target_Dict)
 
 
@@ -637,7 +657,10 @@ def main():
     kf = KalmanFilter()
 
     ser = None
-    ser = serial.Serial('com3', 115200)
+    try:
+        ser = serial.Serial('com3', 115200)
+    except serial.SerialException:
+        print('WARNING: Failed to open serial port')
 
     fps = 0
     target_coor = []
@@ -662,10 +685,21 @@ def main():
                 '''get an image'''
                 # Wait for a coherent pair of frames: depth and color
                 frames = pipeline.wait_for_frames()
+
+                if frame_aligner is not None:
+                    frames = frame_aligner.process(frames)
+
                 # depth_frame = frames.get_depth_frame()
                 color_frame = frames.get_color_frame()
                 if not color_frame:
                     continue
+
+                depth_frame = frames.get_depth_frame()
+                if depth_frame:
+                    depth_image = np.asanyarray(depth_frame.get_data())
+                else:
+                    depth_image = None
+
                 # Convert images to numpy arrays
                 # depth_image = np.asanyarray(depth_frame.get_data())
                 color_image = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
@@ -674,7 +708,7 @@ def main():
                 """Do detection"""
                 binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
 
-                potential_Targetsets = find_contours(binary, frame, fps) # get the list with all potential targets' info
+                potential_Targetsets = find_contours(binary, frame, depth_image, fps) # get the list with all potential targets' info
 
                 if potential_Targetsets: # if returned any potential targets
                     success = True
@@ -745,8 +779,9 @@ def main():
                         imgPoints = np.array(
                             [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                              [armor_br_x, armor_br_y]], dtype=np.float64)
-                        tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
-                        depth = float(tvec[2][0])
+                        target_Dict = get_3d_target_location(imgPoints, color_image, depth_image)
+                        depth, Yaw, Pitch = target_Dict['depth'], target_Dict['Yaw'], target_Dict['Pitch']
+                        # depth = float(tvec[2][0])
 
                         '''draw tracking bouding boxes'''
                         p1 = (int(bbox[0]), int(bbox[1]))
@@ -768,7 +803,8 @@ def main():
                         '''
                         serial_lst = decimalToHexSerial(Yaw,Pitch)
 
-                        send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                        if ser is not None:
+                            send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
                         cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])),
                                  (int(imgPoints[3][0]), int(imgPoints[3][1])),
@@ -936,7 +972,7 @@ def main():
 if __name__ == "__main__":
     num = 0  # for collecting dataset, pictures' names
     """Declare your desired target color here"""
-    targetColor = 0  # Red = 1 ; Blue = 0
+    targetColor = 1  # Red = 1 ; Blue = 0
 
     """init camera as cap, modify camera parameters at here"""
     # Configure depth and color streams
@@ -962,6 +998,10 @@ if __name__ == "__main__":
 
     active_cam_config = camera_params[device_name]
     config.enable_stream(rs.stream.color, active_cam_config['capture_res'][0], active_cam_config['capture_res'][1], rs.format.bgr8, 30)
+
+    if active_cam_config['depth_source'] == DepthSource.STEREO:
+        config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+        frame_aligner = rs.align(rs.stream.color)
 
     # Start streaming
     pipeline.start(config)
