@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import serial
 from UART_UTIL import setUpSerial, send_data
+from kinematic_prediction import poly_predict
 from solve_Angle import solve_Angle455
 from CamInfo_D455 import undistort
 import time
@@ -672,6 +673,12 @@ def main():
     tracker = None
     tracking_frames = 0
     max_tracking_frames = 15
+    max_history_length = 8  # Maximum number of samples to use for prediction
+    prediction_future_time = 0.2  # How far into the future (in seconds) to predict the target's motion
+    max_history_frame_delta = 0.15  # Maximum time allowed (in seconds) between history frames (otherwise history will restart)
+                                    # This should be long enough to allow a dropped frame or two, but not long enough to
+                                    # allow unrelated detections to be grouped together.
+    target_angle_history = []
 
     # counter for kalman
     countKalman = 1
@@ -796,16 +803,6 @@ def main():
                     #last_target_y = imgPoints[0][1] - imgPoints[3][1]
 
                     if (-30 < Pitch < 30) and (-45 < Yaw < 45):
-
-                        '''
-                        all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
-                        return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
-                        '''
-                        serial_lst = decimalToHexSerial(Yaw,Pitch)
-
-                        if ser is not None:
-                            send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
-
                         cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])),
                                  (int(imgPoints[3][0]), int(imgPoints[3][1])),
                                  (33, 255, 255), 2)
@@ -820,9 +817,45 @@ def main():
                         X = int((imgPoints[0][0] + imgPoints[2][0]) / 2)
                         Y = int((imgPoints[0][1] + imgPoints[2][1]) / 2)
 
-                        kf.predict()
-                        kf.correct(X, Y)
-                        predicted = kf.predict(1)
+                        current_time = time.time()
+                        if len(target_angle_history) < 1 or current_time - target_angle_history[-1][0] > max_history_frame_delta:
+                            target_angle_history = [(current_time, Yaw, Pitch)]
+                        else:
+                            target_angle_history.append((current_time, Yaw, Pitch))
+
+                        if len(target_angle_history) > max_history_length:
+                            target_angle_history = target_angle_history[-max_history_length:]
+
+                        if len(target_angle_history) >= 2:
+                            time_hist_array, yaw_hist_array, pitch_hist_array =\
+                                np.array([item[0] for item in target_angle_history]),\
+                                np.array([item[1] for item in target_angle_history]),\
+                                np.array([item[2] for item in target_angle_history])
+
+                            time_hist_array -= time_hist_array[0]
+
+                            degree = 1 if len(target_angle_history) == 2 else 2
+
+                            predicted_yaw = poly_predict(time_hist_array, yaw_hist_array, degree,
+                                                current_time + prediction_future_time)
+                            predicted_pitch = poly_predict(time_hist_array, pitch_hist_array, degree,
+                                                current_time + prediction_future_time)
+                        else:
+                            predicted_yaw, predicted_pitch = Yaw, Pitch
+
+                        '''
+                        all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
+                        return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
+                        '''
+                        serial_lst = decimalToHexSerial(predicted_yaw, predicted_pitch)
+
+                        if ser is not None:
+                            send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+
+
+                        # kf.predict()
+                        # kf.correct(X, Y)
+                        # predicted = kf.predict(1)
                         # predicted = kf.predict()
                         # kf.correct(predicted[0],predicted[1])
                         # predicted = kf.predict()
@@ -831,10 +864,10 @@ def main():
 
 
 
-                        print(predicted[0],predicted[1])
-
-
-                        cv2.circle(frame, (int(predicted[0]), predicted[1]), 5, (255, 255, 0), 4)
+                        # print(predicted[0],predicted[1])
+                        #
+                        #
+                        # cv2.circle(frame, (int(predicted[0]), predicted[1]), 5, (255, 255, 0), 4)
                     else:
 
                         print("!!! Angle exceed limit !!!")

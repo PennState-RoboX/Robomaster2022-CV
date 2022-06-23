@@ -7,6 +7,9 @@ import numpy as np
 # See https://mathworld.wolfram.com/LeastSquaresFittingPolynomial.html
 # for more information (step 16 contains the relevant formula).
 def poly_predict(x: np.ndarray, y: np.ndarray, model_degree: int, predict_x: float):
+    assert x.shape == y.shape
+    assert x.shape[0] >= model_degree + 1  # Too few points results in an ambiguous result/non-invertible matrix
+
     # Note the transpose operation: the x ** n values are the columns of the matrix
     # in step 13.
     x_mat = np.transpose(np.array([x ** n for n in range(model_degree + 1)]))
