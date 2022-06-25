@@ -20,26 +20,25 @@ def nothing(x):
 
 def creatTrackbar():  # creat trackbar to adjust the color threshold.
     if targetColor: # red
-        #cv2.namedWindow("morphology_tuner")
-        #cv2.resizeWindow("morphology_tuner", 600, 180)
-        #cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
-        #cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
-        #cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
-        #cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
+        # cv2.namedWindow("morphology_tuner")
+        # cv2.resizeWindow("morphology_tuner", 600, 180)
+        # cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
+        # cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
+        # cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
+        # cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
         close = 15
         erode = 2
         dilate = 3
     else: #blue
-        #cv2.namedWindow("morphology_tuner")
-        #cv2.resizeWindow("morphology_tuner", 600, 180)
-        #cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
-        #cv2.createTrackbar("close", "morphology_tuner", 5, 30, nothing)
-        #cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
-        #cv2.createTrackbar("dilate", "morphology_tuner", 2, 30, nothing)
+        # cv2.namedWindow("morphology_tuner")
+        # cv2.resizeWindow("morphology_tuner", 600, 180)
+        # cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
+        # cv2.createTrackbar("close", "morphology_tuner", 5, 30, nothing)
+        # cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
+        # cv2.createTrackbar("dilate", "morphology_tuner", 2, 30, nothing)
         close = 5
         erode = 2
         dilate = 2
-
 def open_binary(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
@@ -136,9 +135,9 @@ def read_morphology(cap,close,erode,dilate):  # read cap and morphological opera
     Morphological processing of the processed binary image
     """
     # open = cv2.getTrackbarPos('open', 'morphology_tuner') currently not needed
-    #close = cv2.getTrackbarPos('close', 'morphology_tuner')
-    #erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
-    #dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
+    # close = cv2.getTrackbarPos('close', 'morphology_tuner')
+    # erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
+    # dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
     # dst_open = open_binary(mask, open, open) currently not needed
     dst_close = close_binary(mask_processed, close, close)
     dst_erode = erode_binary(dst_close, erode, erode)
@@ -659,12 +658,10 @@ def decimalToHexSerial(Yaw,Pitch):
 
 def main():
     if targetColor: # red
-        
         close = 15
         erode = 2
         dilate = 3
     else: #blue
-        
         close = 5
         erode = 2
         dilate = 2
@@ -674,7 +671,7 @@ def main():
 
     ser = None
     try:
-        ser = serial.Serial('/dev/ttyTHS1', 115200)
+        ser = serial.Serial('/dev/ttyTHS2', 115200)
     except serial.SerialException:
         print('WARNING: Failed to open serial port')
 
@@ -901,11 +898,11 @@ def main():
 
                 else:
                     # Tracking failure
-                    cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
-                                (0, 0, 255), 2)
+                    # cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
+                    #             (0, 0, 255), 2)
 
                     # send failure data(send 0 degree to make gimbal stop)
-                    send_data(ser, 'eb', 'eb', '32', '32', '3a')
+                    send_data(ser, 'eb', 'eb', '32', '00', '11')
                     # real Yaw time line
                     # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
@@ -971,12 +968,12 @@ def main():
 
 
 
-                cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
-                cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                # cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
+                # cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                # cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                # cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                # cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                # cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
 
                 # real Yaw time line
