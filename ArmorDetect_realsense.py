@@ -20,19 +20,25 @@ def nothing(x):
 
 def creatTrackbar():  # creat trackbar to adjust the color threshold.
     if targetColor: # red
-        cv2.namedWindow("morphology_tuner")
-        cv2.resizeWindow("morphology_tuner", 600, 180)
-        cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
-        cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
-        cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
-        cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
+        #cv2.namedWindow("morphology_tuner")
+        #cv2.resizeWindow("morphology_tuner", 600, 180)
+        #cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
+        #cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
+        #cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
+        #cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
+        close = 15
+        erode = 2
+        dilate = 3
     else: #blue
-        cv2.namedWindow("morphology_tuner")
-        cv2.resizeWindow("morphology_tuner", 600, 180)
-        cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
-        cv2.createTrackbar("close", "morphology_tuner", 5, 30, nothing)
-        cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
-        cv2.createTrackbar("dilate", "morphology_tuner", 2, 30, nothing)
+        #cv2.namedWindow("morphology_tuner")
+        #cv2.resizeWindow("morphology_tuner", 600, 180)
+        #cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
+        #cv2.createTrackbar("close", "morphology_tuner", 5, 30, nothing)
+        #cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
+        #cv2.createTrackbar("dilate", "morphology_tuner", 2, 30, nothing)
+        close = 5
+        erode = 2
+        dilate = 2
 
 def open_binary(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
@@ -58,7 +64,7 @@ def dilate_binary(binary, x, y):
     return dst
 
 
-def read_morphology(cap):  # read cap and morphological operation to get led binary image.
+def read_morphology(cap,close,erode,dilate):  # read cap and morphological operation to get led binary image.
     frame = cap
     # frame = unread_morphologydistort(frame)
     global targetColor  #
@@ -123,16 +129,16 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
     """
     Show difference between Method 1 and Method 2
     """
-    cv2.imshow("sub/threshold", mask_processed)
+    #cv2.imshow("sub/threshold", mask_processed)
     #cv2.imshow("thresholded", mask)
 
     """
     Morphological processing of the processed binary image
     """
     # open = cv2.getTrackbarPos('open', 'morphology_tuner') currently not needed
-    close = cv2.getTrackbarPos('close', 'morphology_tuner')
-    erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
-    dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
+    #close = cv2.getTrackbarPos('close', 'morphology_tuner')
+    #erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
+    #dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
     # dst_open = open_binary(mask, open, open) currently not needed
     dst_close = close_binary(mask_processed, close, close)
     dst_erode = erode_binary(dst_close, erode, erode)
@@ -141,7 +147,7 @@ def read_morphology(cap):  # read cap and morphological operation to get led bin
     """
     Display the final image after preprocessing
     """
-    cv2.imshow("erode", dst_dilate)
+    #cv2.imshow("erode", dst_dilate)
 
     return dst_dilate, frame
 
@@ -444,8 +450,8 @@ def find_contours(binary, frame, depth_frame, fps):  # find contours and main sc
                                     or (col < horizontal_pixel or col > armboard_width - horizontal_pixel - 1):
                                 trans_img[row, col] = 0
 
-                    cv2.imshow("trans_img", trans_img)
-                    cv2.resizeWindow("trans_img", 180, 180)
+                    #cv2.imshow("trans_img", trans_img)
+                    #cv2.resizeWindow("trans_img", 180, 180)
 
                     # Convert to grayscale image
                     gray_img = cv2.cvtColor(trans_img, cv2.COLOR_BGR2GRAY)
@@ -458,7 +464,7 @@ def find_contours(binary, frame, depth_frame, fps):  # find contours and main sc
                     # erode_img = cv2.erode(binary_img, kernel, iterations=1)
                     # dila_img = cv2.dilate(erode_img, kernel, iterations=1)
 
-                    cv2.imshow("dila_img", gray_img)
+                    #cv2.imshow("dila_img", gray_img)
 
                     #cv2.imwrite('c:/Users/Shiao/Desktop/5/{}.png'.format(num), gray_img)
                     num += 1
@@ -652,14 +658,23 @@ def decimalToHexSerial(Yaw,Pitch):
     return serial_lst
 
 def main():
-    creatTrackbar()
+    if targetColor: # red
+        
+        close = 15
+        erode = 2
+        dilate = 3
+    else: #blue
+        
+        close = 5
+        erode = 2
+        dilate = 2
 
     #test Kalman Filter Opencv
     kf = KalmanFilter()
 
     ser = None
     try:
-        ser = serial.Serial('com3', 115200)
+        ser = serial.Serial('/dev/ttyTHS1', 115200)
     except serial.SerialException:
         print('WARNING: Failed to open serial port')
 
@@ -713,7 +728,7 @@ def main():
 
 
                 """Do detection"""
-                binary, frame = read_morphology(color_image)  # changed read_morphology()'s output from binary to mask
+                binary, frame = read_morphology(color_image,close,erode,dilate)  # changed read_morphology()'s output from binary to mask
 
                 potential_Targetsets = find_contours(binary, frame, depth_image, fps) # get the list with all potential targets' info
 
@@ -894,8 +909,8 @@ def main():
                     # real Yaw time line
                     # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
-                cv2.imshow("original", frame)
-                cv2.waitKey(1)
+                #cv2.imshow("original", frame)
+                #cv2.waitKey(1)
 
                 # count += 1
                 #
