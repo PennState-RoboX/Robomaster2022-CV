@@ -1,7 +1,7 @@
 import serial
 import time
 def setUpSerial():
-    ser = serial.Serial('com3', 115200, timeout = 0.5)
+    ser = serial.Serial('/dev/ttyTHS1', 115200, timeout = 0.5)
     #ser.open()
 
 def send_data(ser,hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll): #Angles are in Byte Formact

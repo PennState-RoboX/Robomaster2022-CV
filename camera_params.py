@@ -11,13 +11,13 @@ class DepthSource(enum.IntEnum):
 
 camera_params = {
     'Intel RealSense D435I': {
-        'exposure': {'red': 15.0, 'blue': 5.0},
+        'exposure': {'red': 15.0, 'blue': 35.0},
         'fov': (69, 42),
         'capture_res': (960, 540),
         'depth_source': DepthSource.STEREO
     },
     'Intel RealSense D455': {
-        'exposure': {'red': 8.0, 'blue': 8.0},
+        'exposure': {'red': 45.0, 'blue': 20.0},
         'capture_res': (1280, 720),
         'depth_source': DepthSource.STEREO,
         'fov': (90, 65),
