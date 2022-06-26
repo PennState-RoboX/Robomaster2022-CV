@@ -866,6 +866,8 @@ def main():
                             serial_lst = decimalToHexSerial(Yaw, Pitch)
                             # send '00' means hold no fire
                             send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], '00', serial_lst[4])
+                            last_yaw = Yaw
+                            lastPitch = Pitch
 
 
                         # kf.predict()
