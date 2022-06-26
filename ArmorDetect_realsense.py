@@ -918,7 +918,7 @@ def main():
                     #             (0, 0, 255), 2)
 
                     # send failure data(send 0 degree to make gimbal stop)
-                    send_data(ser, 'eb', 'eb', '32', '00', '11')
+                    send_data(ser, 'eb', 'eb', '32', '00', '00', '11')
                     # real Yaw time line
                     # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
