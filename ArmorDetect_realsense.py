@@ -693,7 +693,10 @@ def main():
     target_angle_history = []
 
     # counter for kalman
-    countKalman = 1
+    # countKalman = 1
+    last_yaw = 0
+    lastPitch = 0
+    lock_on_times = 0
     try:
 
         while True:
@@ -845,10 +848,23 @@ def main():
                         all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
                         return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
                         '''
-                        serial_lst = decimalToHexSerial(Yaw, Pitch)
-
-                        if ser is not None:
-                            send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                        
+                        """
+                        Fire Control: when the muzzle doesn't point at the target, move gimbal to it; Otherwise, Fire Command!!
+                        """
+                        if (abs(Yaw - last_yaw) < 2) and (abs(Pitch - lastPitch) < 1):
+                            lock_on_times += 1
+                            last_yaw = Yaw
+                            lastPitch = Pitch
+                            if ser is not None:
+                                serial_lst = decimalToHexSerial(Yaw, Pitch)
+                                # send '01' means fire command
+                                send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3],'01',serial_lst[4],)
+                            if lock_on_times == 2:
+                                lock_on_times = 0
+                        else:
+                            # send '00' means hold no fire
+                            send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], '00', serial_lst[4])
 
 
                         # kf.predict()
