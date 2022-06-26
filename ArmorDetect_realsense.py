@@ -863,6 +863,7 @@ def main():
                             if lock_on_times == 2:
                                 lock_on_times = 0
                         else:
+                            serial_lst = decimalToHexSerial(Yaw, Pitch)
                             # send '00' means hold no fire
                             send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], '00', serial_lst[4])
 
