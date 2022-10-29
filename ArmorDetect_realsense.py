@@ -12,6 +12,7 @@ import time
 from camera_params import camera_params, DepthSource
 from KalmanFilterClass import KalmanFilter
 
+
 active_cam_config = None
 frame_aligner = None
 
@@ -20,22 +21,22 @@ def nothing(x):
 
 def creatTrackbar():  # creat trackbar to adjust the color threshold.
     if targetColor: # red
-        # cv2.namedWindow("morphology_tuner")
-        # cv2.resizeWindow("morphology_tuner", 600, 180)
-        # cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
-        # cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
-        # cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
-        # cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
+        cv2.namedWindow("morphology_tuner")
+        cv2.resizeWindow("morphology_tuner", 600, 180)
+        cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
+        cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
+        cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
+        cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
         close = 15
         erode = 2
         dilate = 3
     else: #blue
-        # cv2.namedWindow("morphology_tuner")
-        # cv2.resizeWindow("morphology_tuner", 600, 180)
-        # cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
-        # cv2.createTrackbar("close", "morphology_tuner", 5, 30, nothing)
-        # cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
-        # cv2.createTrackbar("dilate", "morphology_tuner", 2, 30, nothing)
+        cv2.namedWindow("morphology_tuner")
+        cv2.resizeWindow("morphology_tuner", 600, 180)
+        cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
+        cv2.createTrackbar("close", "morphology_tuner", 5, 30, nothing)
+        cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
+        cv2.createTrackbar("dilate", "morphology_tuner", 2, 30, nothing)
         close = 5
         erode = 2
         dilate = 2
@@ -146,7 +147,7 @@ def read_morphology(cap,close,erode,dilate):  # read cap and morphological opera
     """
     Display the final image after preprocessing
     """
-    #cv2.imshow("erode", dst_dilate)
+    cv2.imshow("erode", dst_dilate)
 
     return dst_dilate, frame
 
@@ -292,7 +293,7 @@ def find_contours(binary, frame, depth_frame, fps):  # find contours and main sc
 
                 if (abs(data_ryi - data_ryc) <= 3 * ((data_rhi + data_rhc) / 2)) \
                         and (abs(data_rhi - data_rhc) <= 0.5 * max(data_rhi, data_rhc)) \
-                        and (abs(data_rxi - data_rxc) <= 5.5 * ((data_rhi + data_rhc) / 2)) \
+                        and (abs(data_rxi - data_rxc) <= 5 * ((data_rhi + data_rhc) / 2)) \
                         and (abs(data_rzi - data_rzc)) < 10:
                     second_data1.append(first_data[i])
                     second_data2.append(first_data[nextRect])
@@ -656,6 +657,8 @@ def decimalToHexSerial(Yaw,Pitch):
     serial_lst = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
     return serial_lst
 
+
+
 def main():
     if targetColor: # red
         close = 15
@@ -666,12 +669,13 @@ def main():
         erode = 2
         dilate = 2
 
+    creatTrackbar()
     #test Kalman Filter Opencv
     kf = KalmanFilter()
 
     ser = None
     try:
-        ser = serial.Serial('/dev/ttyTHS2', 115200)
+        ser = serial.Serial('com10', 115200)
     except serial.SerialException:
         print('WARNING: Failed to open serial port')
 
@@ -694,6 +698,10 @@ def main():
 
     # counter for kalman
     countKalman = 1
+
+    last_yaw = 0
+    lastPitch = 0
+    lock_on_times = 0
     try:
 
         while True:
@@ -845,11 +853,26 @@ def main():
                         all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
                         return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
                         '''
-                        serial_lst = decimalToHexSerial(Yaw, Pitch)
 
-                        if ser is not None:
-                            send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
-
+                        """
+                        Fire Control: when the muzzle doesn't point at the target, move gimbal to it; Otherwise, Fire Command!!
+                        """
+                        if (abs(Yaw - last_yaw) < 2) and (abs(Pitch - lastPitch) < 1):
+                            lock_on_times += 1
+                            last_yaw = Yaw
+                            lastPitch = Pitch
+                            if ser is not None:
+                                serial_lst = decimalToHexSerial(Yaw, Pitch)
+                                # send '01' means fire command
+                                #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3],'01',serial_lst[4],)
+                            if lock_on_times == 2:
+                                lock_on_times = 0
+                        else:
+                            serial_lst = decimalToHexSerial(Yaw, Pitch)
+                            # send '00' means hold no fire
+                            #send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], '00', serial_lst[4])
+                            last_yaw = Yaw
+                            lastPitch = Pitch
 
                         # kf.predict()
                         # kf.correct(X, Y)
@@ -896,13 +919,15 @@ def main():
                     # serial_lst = decimalToHexSerial(float(Yaw), float(Pitch))
                     # send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
-                else:
+                # else:
                     # Tracking failure
                     # cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
                     #             (0, 0, 255), 2)
 
                     # send failure data(send 0 degree to make gimbal stop)
-                    send_data(ser, 'eb', 'eb', '32', '00', '11')
+                    # send_data(ser, 'eb', 'eb', '32', '00', '00', '11')
+
+
                     # real Yaw time line
                     # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 

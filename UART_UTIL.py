@@ -4,7 +4,7 @@ def setUpSerial():
     ser = serial.Serial('/dev/ttyTHS2', 115200, timeout = 0.5)
     #ser.open()
 
-def send_data(ser,hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll): #Angles are in Byte Formact
+def send_data(ser,hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, fire_command, sumAll): #Angles are in Byte Formact
     #packet = b'\x0d' #header
     #packet = packet + angleA
     #packet = packet + angleB
@@ -23,6 +23,7 @@ def send_data(ser,hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumA
     packet = packet + hex_deci_Pitch
     packet = packet + hex_int_Yaw
     packet = packet + hex_deci_Yaw
+    packet = packet + fire_command
     packet = packet + sumAll
     packet = packet + 'ff'
     print(packet) # Packat before Conversion
