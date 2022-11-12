@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 
 
@@ -6,7 +8,8 @@ import numpy as np
 # evaluates the polynomial at predict_x to return a prediction.
 # See https://mathworld.wolfram.com/LeastSquaresFittingPolynomial.html
 # for more information (step 16 contains the relevant formula).
-def poly_predict(x: np.ndarray, y: np.ndarray, model_degree: int, predict_x: float):
+def poly_predict(x: np.ndarray, y: np.ndarray, model_degree: int, predict_x: float,
+                 weights: Optional[np.ndarray] = None):
     assert x.shape == y.shape
     assert x.shape[0] >= model_degree + 1  # Too few points results in an ambiguous result/non-invertible matrix
 
@@ -15,17 +18,28 @@ def poly_predict(x: np.ndarray, y: np.ndarray, model_degree: int, predict_x: flo
     x_mat = np.transpose(np.array([x ** n for n in range(model_degree + 1)]))
 
     x_mat_t = np.transpose(x_mat)
-    coeffs = np.matmul(np.matmul(
-        np.linalg.inv(np.matmul(x_mat_t, x_mat)),
-        x_mat_t),
-        y)
+
+    if weights is None:
+        coeffs = np.matmul(np.matmul(
+            np.linalg.inv(np.matmul(x_mat_t, x_mat)),
+            x_mat_t),
+            y)
+    else:
+        # Weighted least squares; the calculation is similar, but uses a diagonal
+        # weight matrix. See https://online.stat.psu.edu/stat501/lesson/13/13.1 for more information.
+        weight_mat = np.diag(weights)
+        coeffs = np.matmul(np.matmul(np.matmul(
+            np.linalg.inv(np.matmul(np.matmul(x_mat_t, weight_mat), x_mat)),
+            x_mat_t),
+            weight_mat),
+            y)
 
     predict_pt_powers = np.array([predict_x ** n for n in range(model_degree + 1)])
     return np.dot(predict_pt_powers, coeffs).item()
 
 
 if __name__ == '__main__':
-    test_x = np.array([0.0, 2.0, 2.5, 6.0])
-    test_y = np.array([3.4, 7.5, 9.2, 28.9])
+    test_x = np.array([0.0, 2.0])
+    test_y = np.array([0.0, 7.5])
 
-    print(f'Quadratic prediction at 5.0: {poly_predict(test_x, test_y, 2, 5.0)}')
+    print(f'Quadratic prediction at 5.0: {poly_predict(test_x, test_y, 1, 4.0)}')

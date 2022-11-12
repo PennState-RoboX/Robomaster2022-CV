@@ -834,15 +834,21 @@ def main():
 
                             time_hist_array -= time_hist_array[0]
 
-                            degree = 1 if len(target_angle_history) == 2 else 2
+                            degree = 1  # if len(target_angle_history) == 2 else 2
 
+                            weights = np.linspace(float(max_history_length) - len(time_hist_array) + 1.0, float(max_history_length) + 1.0, len(time_hist_array))
                             predicted_yaw = poly_predict(time_hist_array, yaw_hist_array, degree,
-                                                current_time + prediction_future_time)
+                                                time_hist_array[-1] + prediction_future_time, weights=weights)
                             predicted_pitch = poly_predict(time_hist_array, pitch_hist_array, degree,
-                                                current_time + prediction_future_time)
+                                                time_hist_array[-1] + prediction_future_time, weights=weights)
                         else:
                             predicted_yaw, predicted_pitch = Yaw, Pitch
 
+                        current_point_coords = (int(active_cam_config['fx'] * math.tan(math.radians(Yaw)) + active_cam_config['cx']),
+                                                int(active_cam_config['fy'] * math.tan(math.radians(-Pitch)) + active_cam_config['cy']))
+                        predicted_point_coords = (int(active_cam_config['fx'] * math.tan(math.radians(predicted_yaw)) + active_cam_config['cx']),
+                                                  int(active_cam_config['fy'] * math.tan(math.radians(-predicted_pitch)) + active_cam_config['cy']))
+                        cv2.line(frame, current_point_coords, predicted_point_coords, (255, 255, 255), 2)
                         '''
                         all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
                         return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
