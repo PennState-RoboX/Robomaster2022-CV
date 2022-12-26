@@ -102,3 +102,7 @@ class CameraSource:
                 return frame, None
             else:
                 return None, None
+
+    def __del__(self):
+        if self._rs_pipeline is not None:
+            self._rs_pipeline.stop()

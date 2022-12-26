@@ -10,6 +10,13 @@ class DepthSource(enum.IntEnum):
 
 
 camera_params = {
+    'Generic Webcam': {
+        'frame_rate': 30,
+        'exposure': {'red': 45.0, 'blue': 20.0},
+        'capture_res': (1280, 720),
+        'depth_source': DepthSource.PNP,
+        'fov': (90, 65)
+    },
     'Intel RealSense D435I': {
         'frame_rate': 30,
         'exposure': {'red': 15.0, 'blue': 35.0},
