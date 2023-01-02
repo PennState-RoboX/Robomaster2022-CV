@@ -1,5 +1,6 @@
 import enum
 import math
+import pathlib
 
 import pyrealsense2 as rs
 import cv2
@@ -217,8 +218,9 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
         panel_mask_scaled = cv2.resize(panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
         meanDVal, _ = cv2.meanStdDev(depth_frame, mask=panel_mask_scaled)
 
-        imgPoints = cv2.undistortPoints(imgPoints, active_cam_config['camera_matrix'], active_cam_config['distort_coeffs'],
-                                        P=active_cam_config['camera_matrix'])[:, 0, :]
+        camera_matrix, distort_coeffs = np.array(active_cam_config['camera_matrix'], dtype=np.float64), \
+                                        np.array(active_cam_config['distort_coeffs'], dtype=np.float64)
+        imgPoints = cv2.undistortPoints(imgPoints, camera_matrix, distort_coeffs, P=camera_matrix)[:, 0, :]
         center_point = np.average(imgPoints, axis=0)
         center_offset = center_point - np.array([active_cam_config['cx'], active_cam_config['cy']])
         center_offset[1] = -center_offset[1]
@@ -1046,6 +1048,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--target-color', required=True, type=str, choices=[val.value for val in TargetColor],
                         help='The armor board light color to detect')
+    parser.add_argument('--recording-source', type=pathlib.Path, help='Path to input video recordings')
+    parser.add_argument('--recording-dest', type=pathlib.Path, help='Path to record camera video to (MP4 format)')
     parser.add_argument('--debug', action='store_true', help='Show intermediate results and debug output')
     args = parser.parse_args()
 
@@ -1056,7 +1060,8 @@ if __name__ == "__main__":
     args.target_color = TargetColor(args.target_color)
     num = 0  # for collecting dataset, pictures' names
 
-    camera = CameraSource(camera_params['Generic Webcam'], args.target_color.value)
+    camera = CameraSource(camera_params['Generic Webcam'], args.target_color.value,
+                          recording_source=args.recording_source, recording_dest=args.recording_dest)
     active_cam_config = camera.active_cam_config
 
     main(camera, args.target_color)

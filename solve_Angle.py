@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import math
 
 def solve_AngleDualLeft(imgPoints):
     width_size_half = 70 # small armor board's width(include light bar's width)
@@ -43,8 +42,10 @@ def solve_Angle455(imgPoints, camera_config):
                           [width_size_half, height_size_half, 0],
                           [-width_size_half, height_size_half, 0]], dtype=np.float64)
     #imgPoints #= np.array([[608, 167], [514, 167], [518, 69], [611, 71]], dtype=np.float64)
-    retval,rvec,tvec  = cv2.solvePnP(objPoints, imgPoints, camera_config['camera_matrix'],
-                                                           camera_config['distort_coeffs'])
+    camera_matrix, distort_coeffs = np.array(camera_config['camera_matrix'], dtype=np.float64), \
+                                    np.array(camera_config['distort_coeffs'], dtype=np.float64)
+    retval,rvec,tvec  = cv2.solvePnP(objPoints, imgPoints, camera_matrix,
+                                                           distort_coeffs)
     # cv2.Rodrigues()
     #print (retval, rvec, tvec)
     Yaw = np.arctan(tvec[(0,0)]/ tvec[(2,0)]) / 2 / 3.1415926535897932 * 360

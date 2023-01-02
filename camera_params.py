@@ -1,8 +1,6 @@
 import enum
 import math
 
-import numpy as np
-
 
 class DepthSource(enum.IntEnum):
     STEREO = 0
@@ -56,11 +54,10 @@ for cam_name, param_dict in camera_params.items():
             'p2': 0.0,
             'k3': 0.0
         })
-    param_dict['camera_matrix'] = np.array([[param_dict['fx'], 0, param_dict['cx']],
+    param_dict['camera_matrix'] = [[param_dict['fx'], 0, param_dict['cx']],
                                             [0, param_dict['fy'], param_dict['cy']],
-                                            [0, 0, 1] ],
-                                           dtype=np.float64)
+                                            [0, 0, 1]]
 
-    param_dict['distort_coeffs'] = np.array([param_dict['k1'], param_dict['k2'],
+    param_dict['distort_coeffs'] = [param_dict['k1'], param_dict['k2'],
                                              param_dict['p1'], param_dict['p2'],
-                                             param_dict['k3']])
+                                             param_dict['k3']]
