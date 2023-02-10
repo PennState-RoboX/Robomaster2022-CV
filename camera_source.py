@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 RS_DEPTH_CAPTURE_RES = (640, 480)
 
+
 # Unified image acquisition class for different types of cameras
 class CameraSource:
     def __init__(self, default_config: Dict, target_color: str, cv_device_index: int = 0,
@@ -84,27 +85,31 @@ class CameraSource:
                 cap.set(cv2.CAP_PROP_FPS, self.active_cam_config['frame_rate'])
                 self._cv_color_cap = cap
         else:
-            cam_config_path = recording_source.parent / (recording_source.stem + '.config.json')
+            cam_config_path = recording_source.with_name(recording_source.name + '.config.json')
             with open(cam_config_path, 'r', encoding='utf8') as cam_config_file:
                 self.active_cam_config = json.load(cam_config_file)
 
-            depth_frame_path = recording_source.parent / (recording_source.stem + '.depth' + recording_source.suffix)
-            self._cv_color_cap = cv2.VideoCapture(str(recording_source))
+            color_frame_path = recording_source.with_name(recording_source.name + '.color.mp4')
+            depth_frame_path = recording_source.with_name(recording_source.name + '.depth.mp4')
+            self._cv_color_cap = cv2.VideoCapture(str(color_frame_path))
             self._cv_depth_cap = cv2.VideoCapture(str(depth_frame_path))
 
         self.color_frame_writer = self.depth_frame_writer = None
         if recording_dest is not None:
-            cam_config_path = recording_dest.parent / (recording_dest.stem + '.config.json')
+            cam_config_path = recording_dest.with_name(recording_dest.name + '.config.json')
             with open(cam_config_path, 'w', encoding='utf8') as cam_config_file:
                 json.dump(self.active_cam_config, cam_config_file)
 
+            # Note that using this codec requires video files to have a .mp4 extension, otherwise
+            # writing frames will fail silently.
             codec = cv2.VideoWriter.fourcc('m', 'p', '4', 'v')
-            self.color_frame_writer = cv2.VideoWriter(str(recording_dest), codec, self.active_cam_config['frame_rate'],
+            color_frame_path = recording_dest.with_name(recording_dest.name + '.color.mp4')
+            self.color_frame_writer = cv2.VideoWriter(str(color_frame_path), codec, self.active_cam_config['frame_rate'],
                                                       self.active_cam_config['capture_res'])
             if self._rs_pipeline is not None:
-                depth_frame_path = recording_dest.parent / (recording_dest.stem + '.depth' + recording_dest.suffix)
+                depth_frame_path = recording_dest.with_name(recording_dest.name + '.depth.mp4')
                 self.depth_frame_writer = cv2.VideoWriter(str(depth_frame_path), codec, self.active_cam_config['frame_rate'],
-                                                          RS_DEPTH_CAPTURE_RES)
+                                                          self.active_cam_config['capture_res'])
 
     def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         if self._rs_pipeline is not None:
@@ -135,8 +140,8 @@ class CameraSource:
             else:
                 ret, depth_image = self._cv_depth_cap.read()
                 if ret:
-                    B, G, _ = cv2.split(depth_image)
-                    depth_image = (B.astype(np.uint16) << 8) + G.astype(np.uint16)
+                    B, G, R = cv2.split(depth_image)
+                    depth_image = (B.astype(np.uint16) << 8) + (G.astype(np.uint16) << 12) + R.astype(np.uint16)
                 else:
                     depth_image = None
         else:
@@ -149,8 +154,8 @@ class CameraSource:
             self.color_frame_writer.write(color_image)
 
         if self.depth_frame_writer is not None and depth_image is not None:
-            storage_format_image = cv2.merge([(depth_image >> 8).astype(np.uint8), (depth_image % 256).astype(np.uint8),
-                                              np.zeros_like(depth_image, dtype=np.uint8)])
+            storage_format_image = cv2.merge([(depth_image >> 8).astype(np.uint8), ((depth_image >> 12) % 16).astype(np.uint8),
+                                              (depth_image % 16).astype(np.uint8)])
             self.depth_frame_writer.write(storage_format_image)
 
         return color_image, depth_image
