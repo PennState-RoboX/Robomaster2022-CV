@@ -4,7 +4,7 @@ import re
 
 
 # Angles are in Byte Format
-def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll):
+def send_data(ser, hex_Yaw, hex_Pitch, checksum):
     # packet = b'\x0d' #header
     # packet = packet + angleA
     # packet = packet + angleB
@@ -17,15 +17,15 @@ def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sum
     # packet = packet + b'\x04'
     # packet = packet + b'\x00'
     packet = 'a5'  # Header Byte
-    packet = packet + '5a'
-    packet = packet + '08'  # Length of Packet
-    packet = packet + hex_int_Pitch
-    packet = packet + hex_deci_Pitch
-    packet = packet + hex_int_Yaw
-    packet = packet + hex_deci_Yaw
-    # packet = packet + fire_command
-    packet = packet + sumAll
-    packet = packet + 'ff'
+    packet += '5a'
+    packet += '0b'  # Length of Packet, 11 bytes
+    packet += hex_Yaw
+    packet += hex_Pitch
+    packet += checksum
+    # # packet = packet + fire_comma6nd
+    packet += 'ff'
+
+    
     # print(packet)  # Packat before Conversion
     packet = bytes.fromhex(packet)
     # print(packet)  # Packet Get Sent
@@ -38,7 +38,7 @@ def get_imu(ser):
         return imu_value
 
     while (True):
-        print(ser.in_waiting)
+        # print(ser.in_waiting)
         raw_data = ser.read(100)
         data = raw_data.decode('utf-8', 'replace')
         # print(len(raw_data))  # Count bytes
@@ -66,3 +66,4 @@ if __name__ == '__main__':
     while True:
         imu = get_imu(ser)
         print(imu)
+        # send_data()

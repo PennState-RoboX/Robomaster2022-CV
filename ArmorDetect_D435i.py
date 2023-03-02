@@ -17,6 +17,8 @@ from KalmanFilterClass import KalmanFilter
 from Target import Target
 #from sort import *
 
+import struct
+
 active_cam_config = None
 frame_aligner = None
 
@@ -516,43 +518,26 @@ def findVerticesOrder(pts):
     return np.stack([Bottom[0], Top[0], Top[1], Bottom[1]], axis=0)
 
 
+def float_to_hex(f):
+    ''' turn float to hex'''
+    return ''.join([f'{byte:02x}' for byte in struct.pack('>f', f)])
+
 def decimalToHexSerial(Yaw, Pitch):
-    '''for int part'''
-    int_Pitch = int(Pitch + 50)  # for check sum
-    # form: 0xa; encode -45 degree to -45+50=5 degree
-    hex_int_Pitch = str(hex(int_Pitch))
-    hex_int_Pitch = ('0' + hex_int_Pitch[2:])[-2:]  # delete '0x'
+    # 将Yaw和Pitch转换为IEEE 754标准的四字节浮点数表示，并转换为十六进制字符串
+    # turn Yaw and Pitch to IEEE 754 standard four-byte floating point representation and convert to hexadecimal string
+    hex_Yaw = float_to_hex(Yaw)
+    hex_Pitch = float_to_hex(Pitch)
 
-    int_Yaw = int(Yaw + 50)  # for check sum
-    hex_int_Yaw = str(hex(int_Yaw))  # encode -45 degree to -45+50=5 degree
-    hex_int_Yaw = ('0' + hex_int_Yaw[2:])[-2:]
+    # 计算校验和
+    # calculate checksum
+    bytes_for_checksum = struct.pack('>ff', Yaw, Pitch) # only checked Yaw & Pitch data so far
+    checksum = sum(bytes_for_checksum) % 256
+    hex_checksum = f'{checksum:02x}'
 
-    '''for decimal part to serial hex: input -314.159 output ===> 10'''
-    deci_Pitch = format(math.modf(abs(Pitch))[
-                        0], '.2f')  # decimal part is always positive
-    str_deci_Pitch = str(deci_Pitch)[-2:]
-    int_deci_Pitch = int(str_deci_Pitch)  # for check sum
-    hex_deci_Pitch = str(hex(int_deci_Pitch))
-    # to transfer by serial; form:314.159 => 16
-    hex_deci_Pitch = ('0' + hex_deci_Pitch[2:])[-2:]
-
-    # decimal part is always positive
-    deci_Yaw = format(math.modf(abs(Yaw))[0], '.2f')
-    str_deci_Yaw = str(deci_Yaw)[-2:]
-    int_deci_Yaw = int(str_deci_Yaw)  # for check sum
-    hex_deci_Yaw = str(hex(int_deci_Yaw))
-    # to transfer by serial; form:314.159 => 16
-    hex_deci_Yaw = ('0' + hex_deci_Yaw[2:])[-2:]
-
-    pkt_len = 8
-    int_sumAll = int_Pitch + int_Yaw + int_deci_Pitch + int_deci_Yaw + pkt_len
-    hex_sumAll = str(hex(int_sumAll))
-    hex_sumAll = ('0' + hex_sumAll[2:])[-2:]  # delete '0x'
-
-    serial_lst = [hex_int_Pitch, hex_deci_Pitch,
-                  hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
+    # 构建十六进制数据列表
+    # build hexadecimal data list
+    serial_lst = [hex_Yaw, hex_Pitch, hex_checksum]
     return serial_lst
-
 
 def main(camera: CameraSource, target_color: TargetColor):
     """
@@ -657,7 +642,7 @@ def main(camera: CameraSource, target_color: TargetColor):
 
         else: # if detection failed
             """Prepare Tracking"""
-            
+
             detect_success = False
             if tracker is not None and tracking_frames < max_tracking_frames:
                 tracking_frames += 1
@@ -743,9 +728,9 @@ def main(camera: CameraSource, target_color: TargetColor):
                          (33, 255, 255), 2)
                 cv2.putText(frame, str(depth), (90, 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(global_yaw), (90, 50),
+                cv2.putText(frame, str(np.deg2rad(Yaw)), (90, 50),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(global_pitch), (90, 80),
+                cv2.putText(frame, str(np.deg2rad(Pitch)), (90, 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
                 # """test Kalman Filter"""
@@ -815,12 +800,20 @@ def main(camera: CameraSource, target_color: TargetColor):
                 elif relative_pred_yaw < -50:
                     relative_pred_yaw = -50
 
+                # send predicted 
+                # serial_lst = decimalToHexSerial(
+                #     relative_pred_yaw, relative_pred_pitch)
+                
+                # send Detected
+                Yaw = np.deg2rad(Yaw)
+                Pitch = np.deg2rad(Pitch)
                 serial_lst = decimalToHexSerial(
-                    relative_pred_yaw, relative_pred_pitch)
+                    Yaw, Pitch)
+                
 
                 if ser is not None:
                     send_data(
-                        ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+                        ser, serial_lst[0], serial_lst[1], serial_lst[2])
 
             else:
 
@@ -833,7 +826,7 @@ def main(camera: CameraSource, target_color: TargetColor):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
             # send failure data(send 0 degree to make gimbal stop)
             if ser is not None:
-                send_data(ser, '00', '00', '00', '00', '00')
+                send_data(ser, '00', '00', '00')
 
             # real Yaw time line
             # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
@@ -849,6 +842,7 @@ def main(camera: CameraSource, target_color: TargetColor):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
         cv2.putText(frame, str(fps), (90, 110),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+
 
         # real Yaw time line
         # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
