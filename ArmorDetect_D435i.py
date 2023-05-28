@@ -1,6 +1,7 @@
 import enum
 import math
 import pathlib
+from dataclasses import dataclass
 
 import pyrealsense2 as rs
 import cv2
@@ -234,21 +235,49 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
 
     return target_Dict
 
+@dataclass
+class ImageRect:
+    points: np.ndarray
+
+    @property
+    def center(self):
+        return np.average(self.points, axis=0)
+
+    @property
+    def width_vec(self):
+        return np.average(self.points[2:, :], axis=0) - np.average(self.points[:2, :], axis=0)
+
+    @property
+    def width(self):
+        return np.linalg.norm(self.width_vec)
+
+    @property
+    def height_vec(self):
+        return np.average(self.points[(0, 3), :], axis=0) - np.average(self.points[(1, 2), :], axis=0)
+
+    @property
+    def height(self):
+        return np.linalg.norm(self.height_vec)
+
+    @property
+    def angle(self):
+        return 90.0 - np.rad2deg(np.arctan2(self.height_vec[1], self.height_vec[0]))
+
+
 
 def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find contours and main screening section
     global num
     contours, heriachy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     length = len(contours)
     first_data = []  # include all potential light bar's contourArea information dict by dict
-    second_data1 = []
-    second_data2 = []
+    second_data = []
     potential_Targets = []  # all potential target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
     # target_Dict = dict() # per target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
 
     if length > 0:
         # collect info for every contour's rectangle
         for i, contour in enumerate(contours):
-            data_dict = dict()
+            # data_dict = dict()
             # print("countour", contour)
             area = cv2.contourArea(contour)
 
@@ -262,45 +291,15 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
             # rh = rect[1][1]  # rect's height
             # z = rect[2]  # rect's Rotation angle, θ
 
-            coor = cv2.boxPoints(rect)  # coordinates of the four vertices of the rectangle
+            coor = cv2.boxPoints(rect).astype(np.int)  # coordinates of the four vertices of the rectangle
 
             rect_param = findVerticesOrder(coor)  # output order: [bl,tl,tr,br]
+            rect = ImageRect(rect_param)
 
-            rx, ry = np.average(rect_param, axis=0)
-            rw = np.linalg.norm(np.average(rect_param[2:, :], axis=0) - np.average(rect_param[:2, :], axis=0))
-            height_vec = np.average(rect_param[(0, 3), :], axis=0) - np.average(rect_param[(1, 2), :], axis=0)
-            rh = np.linalg.norm(height_vec)
-            z = 90.0 - np.rad2deg(np.arctan2(height_vec[1], height_vec[0]))
-
-
-            x1 = rect_param[0][0]
-            y1 = rect_param[0][1]
-            x2 = rect_param[1][0]
-            y2 = rect_param[1][1]
-            x3 = rect_param[2][0]
-            y3 = rect_param[2][1]
-            x4 = rect_param[3][0]
-            y4 = rect_param[3][1]
-
-            data_dict["area"] = area
-            data_dict["rx"] = rx
-            data_dict["ry"] = ry
-            data_dict["rh"] = rh
-            data_dict["rw"] = rw
-            data_dict["z"] = z
-            data_dict["x1"] = x1
-            data_dict["y1"] = y1
-            data_dict["x2"] = x2
-            data_dict["y2"] = y2
-            data_dict["x3"] = x3
-            data_dict["y3"] = y3
-            data_dict["x4"] = x4
-            data_dict["y4"] = y4
-
-            cv2.circle(frame, (int(x1), int(y1)), 9, (255, 255, 255), -1)  # test armor_tr
-            cv2.circle(frame, (int(x2), int(y2)), 9, (0, 255, 0), -1)  # test armor_tl
-            cv2.circle(frame, (int(x3), int(y3)), 9, (255, 255, 0), -1)  # test bottom left
-            cv2.circle(frame, (int(x4), int(y4)), 9, (0, 100, 250), -1)  # test bottom left
+            cv2.circle(frame, rect.points[0], 9, (255, 255, 255), -1)  # test armor_tr
+            cv2.circle(frame, rect.points[1], 9, (0, 255, 0), -1)  # test armor_tl
+            cv2.circle(frame, rect.points[2], 9, (255, 255, 0), -1)  # test bottom left
+            cv2.circle(frame, rect.points[3], 9, (0, 100, 250), -1)  # test bottom left
 
             #box = np.int0(coor)
             #cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
@@ -308,189 +307,55 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
 
             """filer out undesired rectangle, only keep lightBar-like shape"""
             """90--->45-->0-center(horizontally)->90-->45-->0"""
-            if (float(rh / rw) >= config.bar_aspect_ratio_min) and (float(rh / rw) <= config.bar_aspect_ratio_max) \
-                    and (float(z) <= config.bar_z_angle_max and float(z) >= -config.bar_z_angle_max):  # filer out undesired rectangle, only keep lightBar-like shape
+            aspect_ratio = rect.height / rect.width
+            if (aspect_ratio >= config.bar_aspect_ratio_min) and (aspect_ratio <= config.bar_aspect_ratio_max) \
+                    and (rect.angle <= config.bar_z_angle_max and rect.angle >= -config.bar_z_angle_max):  # filer out undesired rectangle, only keep lightBar-like shape
 
-                first_data.append(data_dict)
+                first_data.append(rect)
                 box = np.int0(coor)
                 cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
-                #print(float(z))
-            # The rh will become rw when center(horizontally)->90-->45-->0, rw below will represent the minRectangle's height now
-            # elif (float(rh / rw) >= 0.075) and (float(rh / rw) <= 0.9) \
-            #         and (float(z) <= 90 and float(z) >= 70):
-            #
-            #     '''switch rw and rh back to normal'''
-            #     temp = data_dict["rh"]
-            #     data_dict["rh"] = data_dict["rw"]
-            #     data_dict["rw"] = temp
-            #
-            #     #print(float(z))
-            #     first_data.append(data_dict)
-            #     box = np.int0(coor)
-            #     cv2.drawContours(frame, [box], -1, (0, 0, 255), 3)  # test countor minRectangle
-            #     # print(z)
 
         for i in range(len(first_data)):
-
             nextRect = i + 1
             while nextRect < len(first_data):
-                data_ryi = float(first_data[i].get("ry", 0))  # i = initial
-                data_ryc = float(first_data[nextRect].get("ry", 0))  # c = current
-                data_rhi = float(first_data[i].get("rh", 0))
-                data_rhc = float(first_data[nextRect].get("rh", 0))
-                data_rxi = float(first_data[i].get("rx", 0))
-                data_rxc = float(first_data[nextRect].get("rx", 0))
-                data_rzi = float(first_data[i].get("z", 0))
-                data_rzc = float(first_data[nextRect].get("z", 0))
-                data_rwi = float(first_data[i].get("rw", 0))
-                data_rwc = float(first_data[nextRect].get("rw", 0))
-
-                if (abs(data_ryi - data_ryc) <= config.relative_y_delta_max * ((data_rhi + data_rhc) / 2)) \
-                        and (abs(data_rhi - data_rhc) <= config.relative_height_diff_max * max(data_rhi, data_rhc)) \
-                        and (abs(data_rxi - data_rxc) <= config.relative_x_delta_max * ((data_rhi + data_rhc) / 2)) \
-                        and (abs(data_rzi - data_rzc)) < config.z_delta_max:
-                    second_data1.append(first_data[i])
-                    second_data2.append(first_data[nextRect])
-
-
+                c = first_data[i]
+                n = first_data[nextRect]
+                if (abs(c.center[1] - n.center[1]) <= config.relative_y_delta_max * ((c.height + n.height) / 2)) \
+                        and (abs(c.height - n.height) <= config.relative_height_diff_max * max(c.height, n.height)) \
+                        and (abs(c.center[0] - n.center[0]) <= config.relative_x_delta_max * ((c.height + n.height) / 2)) \
+                        and (abs(c.angle - n.angle)) < config.z_delta_max:
+                    second_data.append((first_data[i], first_data[nextRect]))
 
                 nextRect = nextRect + 1
 
-        if len(second_data1):
+        for r1, r2 in second_data: #find vertices for each
+            if abs(r1.points[0][1] - r2.points[2][1]) <= 3 * (abs(r1.points[0][0] - r2.points[2][0])): #if find potential bounded lightbar formed targets
+                left_bar, right_bar = (r1, r2) if r1.points[3][0] <= r2.points[3][0] else (r2, r1)
+                left_side_vec = (left_bar.points[0] - left_bar.points[1]) / 2
+                right_side_vec = (left_bar.points[3] - left_bar.points[2]) / 2
 
-            for i in range(len(second_data1)): #find vertices for each
+                '''Prepare rect 4 vertices array and then pass it to (1) solve_Angle455's argument (2) number detection'''
+                imgPoints = np.array(
+                    [left_bar.points[0] + left_side_vec, left_bar.points[1] - left_side_vec,
+                     right_bar.points[2] - right_side_vec, right_bar.points[3] + right_side_vec],
+                    dtype=np.float64)
+                target_Dict = get_3d_target_location(imgPoints, frame, depth_frame)
+                potential_Targets.append(target_Dict)
 
-                rectangle_x1 = int(second_data1[i]["x1"])
-                rectangle_y1 = int(second_data1[i]["y1"])
-                rectangle_x3 = int(second_data2[i]["x3"])
-                rectangle_y3 = int(second_data2[i]["y3"])
-
-                if abs(rectangle_y1 - rectangle_y3) <= 3 * (abs(rectangle_x1 - rectangle_x3)): #if find potential bounded lightbar formed targets
-                    # all point data-type here are <class 'numpy.float32'>
-                    point1_1x = second_data1[i]["x1"]
-                    point1_1y = second_data1[i]["y1"]
-                    point1_2x = second_data1[i]["x2"]
-                    point1_2y = second_data1[i]["y2"]
-                    point1_3x = second_data1[i]["x3"]
-                    point1_3y = second_data1[i]["y3"]
-                    point1_4x = second_data1[i]["x4"]
-                    point1_4y = second_data1[i]["y4"]
-                    point1_z = second_data1[i]["z"]
-                    #print(type(point1_2y))
-
-                    '''rect1_param: output vertices in order, [bl,tl,tr,br]'''
-                    rect1_param = np.array([[point1_1x,point1_1y],[point1_2x,point1_2y],[point1_3x,point1_3y],[point1_4x,point1_4y]])
-                    #rect1_param = findVerticesOrder(rect1_param)
-                    #rect1_param[0][1] equals to bl_y
-
-
-                    point2_1x = second_data2[i]["x1"]
-                    point2_1y = second_data2[i]["y1"]
-                    point2_2x = second_data2[i]["x2"]
-                    point2_2y = second_data2[i]["y2"]
-                    point2_3x = second_data2[i]["x3"]
-                    point2_3y = second_data2[i]["y3"]
-                    point2_4x = second_data2[i]["x4"]
-                    point2_4y = second_data2[i]["y4"]
-                    point2_z = second_data2[i]["z"]
-
-                    '''rect2_param: output vertices in order, [bl,tl,tr,br]'''
-                    rect2_param = np.array([[point2_1x, point2_1y], [point2_2x, point2_2y], [point2_3x, point2_3y],[point2_4x, point2_4y]])
-                    # rect2_param = findVerticesOrder(rect2_param)  # output order: [bl,tl,tr,br]
-
-                    #print(rect1_param)
-                    #print("fen ge xian")
-                    #print(rect2_param)
-
-                    # cv2.circle(frame, (int(point2_1x), int(point2_1y)), 9, (255, 255, 255), -1)  # test armor_tr
-                    # cv2.circle(frame, (int(point2_2x), int(point2_2y)), 9, (0, 255, 0), -1)  # test armor_tl
-                    # cv2.circle(frame, (int(point2_3x), int(point2_3y)), 9, (255, 255, 0), -1)  # test bottom left
-                    # cv2.circle(frame, (int(point2_4x), int(point2_4y)), 9, (0, 100, 250), -1)  # test bottom left
-                    #
-                    # cv2.circle(frame, (int(point1_1x), int(point1_1y)), 9, (255, 255, 255), -1)  # test armor_tr
-                    # cv2.circle(frame, (int(point1_2x), int(point1_2y)), 9, (0, 255, 0), -1)  # test armor_tl
-                    # cv2.circle(frame, (int(point1_3x), int(point1_3y)), 9, (255, 255, 0), -1)  # test bottom left
-                    # cv2.circle(frame, (int(point1_4x), int(point1_4y)), 9, (0, 100, 250), -1)  # test bottom left
-                    if point1_4x > point2_4x:  # point 1 is the rectangle vertices of right light bar
-                        right_lightBar_len = abs(rect1_param[2][1] - rect1_param[3][1])  # (TR - BR)y-axis
-                        left_lightBar_len = abs(rect2_param[1][1] - rect2_param[0][1]) # (TL - BL)y-axis
-                        """all armor tr,tl,br,bl are exclude the light bar"""
-                        armor_tl_y = int(rect2_param[1][1] - 1 / 2 * left_lightBar_len)
-                        armor_br_y = int(rect1_param[3][1] + 1 / 2 * right_lightBar_len)
-                        armor_tr_y = int(rect1_param[2][1] - 1 / 2 * right_lightBar_len)
-                        armor_bl_y = int(rect2_param[0][1] + 1 / 2 * left_lightBar_len)
-                        armor_tl_x = int(rect2_param[1][0])
-                        armor_br_x = int(rect1_param[3][0])
-                        armor_tr_x = int(rect1_param[2][0])
-                        armor_bl_x = int(rect2_param[0][0])
-
-                        # cv2.rectangle(frame, (int(point1_3x), int(armor_br)), (int(point2_1x), int(armor_tl)),(255, 0, 255), 2)
-                        #cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (0, 0, 255), 2)
-                        #cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (0, 0, 255), 2)
-
-                        # cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
-                        # cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
-                        # cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
-                        # cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
-
-                        '''Prepare rect 4 vertices array and then pass it to (1) solve_Angle455's argument (2) number detection'''
-                        imgPoints = np.array(
-                            [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
-                             [armor_br_x, armor_br_y]], dtype=np.float64)
-                        target_Dict = get_3d_target_location(imgPoints, frame, depth_frame)
-                        potential_Targets.append(target_Dict)
-
-                    else:  # point 2 is the rectangle vertices of right light bar
-                        right_lightBar_len = abs(rect2_param[2][1] - rect2_param[3][1])  # (TR - BR)y-axis
-                        left_lightBar_len = abs(rect1_param[1][1] - rect1_param[0][1])  # (TL - BL)y-axis
-                        """all armor tr,tl,br,bl are exclude the light bar"""
-                        armor_tl_y = int(rect1_param[1][1] - 1 / 2 * left_lightBar_len)
-                        armor_br_y = int(rect2_param[3][1] + 1 / 2 * right_lightBar_len)
-                        armor_tr_y = int(rect2_param[2][1] - 1 / 2 * right_lightBar_len)
-                        armor_bl_y = int(rect1_param[0][1] + 1 / 2 * left_lightBar_len)
-                        armor_tl_x = int(rect1_param[1][0])
-                        armor_br_x = int(rect2_param[3][0])
-                        armor_tr_x = int(rect2_param[2][0])
-                        armor_bl_x = int(rect1_param[0][0])
-
-                        #cv2.line(frame, (armor_tl_x, armor_tl_y), (armor_br_x, armor_br_y), (255, 255, 255), 2)
-                        #cv2.line(frame, (armor_tr_x, armor_tr_y), (armor_bl_x, armor_bl_y), (255, 255, 255), 2)
-
-                        # cv2.circle(frame, (int(armor_tr_x), int(armor_tr_y)), 9, (255, 255, 255), -1)  # test armor_tr
-                        # cv2.circle(frame, (int(armor_tl_x), int(armor_tl_y)), 9, (0, 255, 0), -1)  # test armor_tl
-                        # cv2.circle(frame, (int(armor_bl_x), int(armor_bl_y)), 9, (255, 255, 0), -1) # test bottom left
-                        # cv2.circle(frame, (int(armor_br_x), int(armor_br_y)), 9, (0, 100, 250), -1)  # test bottom left
-
-                        '''Prepare rect 4 vertices array and then pass it as solve_Angle455's argument'''
-                        imgPoints = np.array(
-                            [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
-                             [armor_br_x, armor_br_y]], dtype=np.float64)
-
-                        target_Dict = get_3d_target_location(imgPoints, frame, depth_frame)
-
-                        '''collect potential targets' info'''
-                        potential_Targets.append(target_Dict)
-
-
-
-
-
-
+                if debug:
                     '''collecting data set at below'''
                     armboard_width = 27
                     armboard_height = 25
 
-
                     coordinate_before = np.float32(imgPoints)
                     # coordinate_after is in the order of imgPoints (bl,tl,tr,br)
                     coordinate_after = np.float32([[0, armboard_height], [0, 0], [armboard_width, 0],
-                                                   [armboard_width,armboard_height]])
+                                                   [armboard_width, armboard_height]])
 
                     # Compute the transformation matrix
                     trans_mat = cv2.getPerspectiveTransform(coordinate_before, coordinate_after)
                     # Perform transformation and show the result
                     trans_img = cv2.warpPerspective(frame, trans_mat, (armboard_width, armboard_height))
-
 
                     trans_img = np.array(255 * (trans_img / 255) ** 0.5, dtype='uint8')
 
@@ -504,62 +369,32 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
                                     or (col < horizontal_pixel or col > armboard_width - horizontal_pixel - 1):
                                 trans_img[row, col] = 0
 
-                    if debug:
-                        cv2.imshow("trans_img", trans_img)
-                        cv2.resizeWindow("trans_img", 180, 180)
+                    cv2.imshow("trans_img", trans_img)
+                    cv2.resizeWindow("trans_img", 180, 180)
 
-                        # Convert to grayscale image
-                        gray_img = cv2.cvtColor(trans_img, cv2.COLOR_BGR2GRAY)
-                        #cv2.imshow("dila_img", gray_img)
-                        # Convert to binary image
-                        #_, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
-                        # Erosion and dilation to denoise
-                        # Define the kernel (5 pixel * 5 pixel square)
-                        #kernel = np.ones((2, 2), np.uint8)
-                        #erode_img = cv2.erode(binary_img, kernel, iterations=1)
-                        #dila_img = cv2.dilate(erode_img, kernel, iterations=1)
+                    # Convert to grayscale image
+                    gray_img = cv2.cvtColor(trans_img, cv2.COLOR_BGR2GRAY)
+                    #cv2.imshow("dila_img", gray_img)
+                    # Convert to binary image
+                    #_, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
+                    # Erosion and dilation to denoise
+                    # Define the kernel (5 pixel * 5 pixel square)
+                    #kernel = np.ones((2, 2), np.uint8)
+                    #erode_img = cv2.erode(binary_img, kernel, iterations=1)
+                    #dila_img = cv2.dilate(erode_img, kernel, iterations=1)
 
-                        cv2.imshow("dila_img", gray_img)
+                    cv2.imshow("dila_img", gray_img)
 
-                    #cv2.imwrite('c:/Users/Shiao/Desktop/4/{}.png'.format(num), gray_img)
-                    num += 1
+                #cv2.imwrite('c:/Users/Shiao/Desktop/4/{}.png'.format(num), gray_img)
+                num += 1
 
+                cv2.putText(frame, "Potentials:", (int(imgPoints[2][0]), int(imgPoints[2][1]) - 5), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, [255, 255, 255])
+                center = np.average(imgPoints, axis=0).astype(np.int)
+                cv2.circle(frame, center, 2, (0, 0, 255), -1)  # draw the center of the detected armor board
+                #print("Target at (x,y) = (" + str(X) + "," + str(Y) + ")")
 
-
-                    '''when angle = 90 or 90 --> angle --> 45; vertices: [ 1 2 ]
-                                                                         [ 4 3 ]
-                        if point1_4x > point2_4x, point 1 is the rectangle vertices of right light bar;
-                        if point1_4x < point2_4x, point 2 is the rectangle vertices of right light bar
-                    '''
-                    '''when angle != 90; vertices: [ 2 3 ]
-                                                   [ 1 4 ]
-                        if point1_4x > point2_4x, point 1 is the rectangle vertices of right light bar;
-                        if point1_4x < point2_4x, point 2 is the rectangle vertices of right light bar
-                    '''
-
-
-
-
-
-
-                    """calculate image's area"""
-
-
-                    # depth = str(tvec[2][0]) + 'mm'
-                    # cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    # cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    # cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                    #cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-
-                    cv2.putText(frame, "Potentials:", (rectangle_x3, rectangle_y3 - 5), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.5, [255, 255, 255])
-                    X = int((point2_2x + point1_4x) / 2)
-                    Y = int((point2_2y + point1_4y) / 2)
-                    center = (X, Y)
-                    cv2.circle(frame, center, 2, (0, 0, 255), -1)  # draw the center of the detected armor board
-                    #print("Target at (x,y) = (" + str(X) + "," + str(Y) + ")")
-
-                    #print(potential_Targets)
+                #print(potential_Targets)
 
 
         # else:
