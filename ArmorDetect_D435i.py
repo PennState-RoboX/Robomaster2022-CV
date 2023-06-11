@@ -33,18 +33,21 @@ class CVParams:
     def __init__(self, target_color: TargetColor):
         self.target_color = target_color
         if target_color == TargetColor.RED:
-            self.threshold_red_min, self.threshold_red_min_range = 130, (0, 255, 1)
-            self.threshold_green_max, self.threshold_green_max_range = 100, (0, 255, 1)
+            self.hue_min, self.hue_min_range = 170, (0, 180, 1)
+            self.hue_max, self.hue_max_range = 180, (0, 180, 1)
+            self.saturation_min, self.saturation_min_range = 20, (0, 255, 1)
+            self.value_min, self.value_min_range = 128, (0, 255, 1)
 
             self.close_size = 15
             self.erode_size = 2
             self.dilate_size = 3
         else:
-            self.threshold_red_max, self.threshold_red_max_range = 200, (0, 255, 1)
-            self.threshold_green_max, self.threshold_green_max_range = 180, (0, 255, 1)
-            self.threshold_blue_min, self.threshold_blue_min_range = 180, (0, 255, 1)
+            self.hue_min, self.hue_min_range = 90, (0, 180, 1)
+            self.hue_max, self.hue_max_range = 120, (0, 180, 1)
+            self.saturation_min, self.saturation_min_range = 20, (0, 255, 1)
+            self.value_min, self.value_min_range = 128, (0, 255, 1)
 
-            self.close_size = 5
+            self.close_size = 3
             self.erode_size = 2
             self.dilate_size = 2
 
@@ -120,7 +123,7 @@ def dilate_binary(binary, x, y):
 def read_morphology(cap, config: CVParams):  # read cap and morphological operation to get led binary image.
     frame = cap
     # frame = unread_morphologydistort(frame)
-    B, G, R = cv2.split(frame)  # Split channels
+    H, S, V = cv2.split(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV))  # Split channels
 
     """
     Method1: subtract the opposite color's channel with the desired color channel(For Red:R-B or For Blue:B-R)
@@ -138,39 +141,9 @@ def read_morphology(cap, config: CVParams):  # read cap and morphological operat
     Method2: try thresholds on differnet channels seperatedly(higher threshold on desired color channel; lower
     threshold on other channels)
     """
-    """ for red """
-    if config.target_color == TargetColor.RED:  # Red = 1
-        ret1, mask1 = cv2.threshold(R, config.threshold_red_min, 255, cv2.THRESH_BINARY)
-        ret2, mask2 = cv2.threshold(G, config.threshold_green_max, 255, cv2.THRESH_BINARY_INV)
-        # ret3, mask3 = cv2.threshold(B, 250, 255, cv2.THRESH_BINARY_INV)
-        mask_processed = cv2.bitwise_and(mask1, mask2)  # split channels,set threshold seperately, bitwise together
-        #mask_processed = cv2.blur(mask_red, (3, 3))  # blur the overexposure part(central part of the light bar)
-        # maskRBG1 = cv2.bitwise_and(maskRG1, mask3)
 
-        #red_high_light = cv2.subtract(R, B) * 3   # subtract Red channel with Blue Channel
-        #red_blur = cv2.blur(red_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
-        #ret, mask_processed = cv2.threshold(red_blur, 80, 255, cv2.THRESH_BINARY)  # Convert to binary img
-
-    else:  # Blue mode
-        """ for blue in threshold method, but it can't filter out white lights
-            ret3, mask4_max = cv2.threshold(B, 240, 255, cv2.THRESH_BINARY_INV)
-            ret3, mask4_max_min = cv2.threshold(B, 210, 255, cv2.THRESH_BINARY)
-            ret2, mask5 = cv2.threshold(G, 245, 255, cv2.THRESH_BINARY_INV)
-            ret2, mask6 = cv2.threshold(mask5, 71, 255, cv2.THRESH_BINARY)
-            maskGB = cv2.bitwise_and(mask4_max_min, mask6)  # split channels,set threshold seperately, bitwise together
-            #maskRGB = cv2.bitwise_and(maskGB, mask6)
-        """
-        # blue_high_light = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
-        # blue_blur = cv2.blur(blue_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
-        # ret, mask_processed = cv2.threshold(blue_blur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
-        # blue_high_light = cv2.subtract(B, R) * 2  # subtract Red channel with Blue Channel
-        # blue_blur = cv2.blur(blue_high_light, (3, 3))  # blur the overexposure part(central part of the light bar)
-        # ret, mask_processed = cv2.threshold(blue_blur, 110, 255, cv2.THRESH_BINARY)  # Convert to binary img
-        ret1, mask1 = cv2.threshold(R, config.threshold_red_max, 255, cv2.THRESH_BINARY_INV)
-        ret2, mask2 = cv2.threshold(G, config.threshold_green_max, 255, cv2.THRESH_BINARY_INV)
-        ret3, mask3 = cv2.threshold(B, config.threshold_blue_min, 255, cv2.THRESH_BINARY)
-        mask_processed = cv2.bitwise_and(cv2.bitwise_and(mask1, mask2),
-                                         mask3)  # split channels,set threshold seperately, bitwise together
+    mask_processed = ((H >= config.hue_min) & (H <= config.hue_max) & (S >= config.saturation_min)
+                      & (V >= config.value_min)).astype(np.uint8) * 255
 
     """
     combine Method 1 and 2 together; needed or not?
