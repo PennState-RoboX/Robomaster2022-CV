@@ -603,13 +603,15 @@ def main(camera: CameraSource, target_color: TargetColor):
             bbox = (target_coor_tl_x - target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10,
                     target_coor_height)
 
-            bbox = clipRect(bbox, (color_image.shape[0], color_image.shape[1]))
+            bbox = clipRect(bbox, (color_image.shape[1], color_image.shape[0]))
 
             # init the tracker with target detected frame & target coordinace
 
-            if bbox[2] >= 50 and bbox[3] >= 50:
+            if bbox[2] >= 10 and bbox[3] >= 10:
                 tracker = cv2.TrackerKCF_create()
                 tracker.init(color_image, tuple(int(x) for x in bbox))
+            else:
+                tracker = None
         else:
             # if tracking_frames == 0:
             #     sensor.set_option(rs.option.exposure, 88.000)
