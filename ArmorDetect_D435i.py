@@ -180,31 +180,39 @@ def read_morphology(cap, config: CVParams):  # read cap and morphological operat
 
 
 def get_3d_target_location(imgPoints, frame, depth_frame):
+    camera_matrix, distort_coeffs = np.array(active_cam_config['camera_matrix'], dtype=np.float64), \
+                                    np.array(active_cam_config['distort_coeffs'], dtype=np.float64)
+    imgPoints = cv2.undistortPoints(imgPoints, camera_matrix, distort_coeffs, P=camera_matrix)[:, 0, :]
+    center_point = np.average(imgPoints, axis=0)
+    center_offset = center_point - np.array([active_cam_config['cx'], active_cam_config['cy']])
+    center_offset[1] = -center_offset[1]
+    angles = np.rad2deg(np.arctan2(center_offset, np.array([active_cam_config['fx'], active_cam_config['fy']])))
+
     if active_cam_config['depth_source'] == DepthSource.PNP:
-        tvec, Yaw, Pitch = solve_Angle455(imgPoints, active_cam_config)
-        target_Dict = {"depth": float(tvec[2][0]),
-                       "Yaw": Yaw, "Pitch": Pitch,
-                       "imgPoints": imgPoints}
+        width_size_half = 70  # small armor board's width(include light bar's width)
+        height_size_half = 62.5  # small armor board's height
+        '''Here's D455 RGB's features with 1280*480'''
+
+        objPoints = np.array([[-width_size_half, -height_size_half, 0],
+                              [width_size_half, -height_size_half, 0],
+                              [width_size_half, height_size_half, 0],
+                              [-width_size_half, height_size_half, 0]], dtype=np.float64)
+
+        retval, rvec, tvec = cv2.solvePnP(objPoints, imgPoints, camera_matrix,
+                                          distort_coeffs)
+        meanDVal = np.linalg.norm(tvec[:, 0])
     elif active_cam_config['depth_source'] == DepthSource.STEREO:
         assert depth_frame is not None
         panel_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
         cv2.drawContours(panel_mask, [imgPoints.astype(np.int64)], -1, 1, thickness=cv2.FILLED)
         panel_mask_scaled = cv2.resize(panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
         meanDVal, _ = cv2.meanStdDev(depth_frame, mask=panel_mask_scaled)
-
-        camera_matrix, distort_coeffs = np.array(active_cam_config['camera_matrix'], dtype=np.float64), \
-                                        np.array(active_cam_config['distort_coeffs'], dtype=np.float64)
-        imgPoints = cv2.undistortPoints(imgPoints, camera_matrix, distort_coeffs, P=camera_matrix)[:, 0, :]
-        center_point = np.average(imgPoints, axis=0)
-        center_offset = center_point - np.array([active_cam_config['cx'], active_cam_config['cy']])
-        center_offset[1] = -center_offset[1]
-        angles = np.rad2deg(np.arctan2(center_offset, np.array([active_cam_config['fx'], active_cam_config['fy']])))
-
-        target_Dict = {"depth": meanDVal,
-                       "Yaw": angles[0], "Pitch": angles[1],
-                       "imgPoints": imgPoints}
     else:
         raise RuntimeError('Invalid depth source in camera config')
+
+    target_Dict = {"depth": meanDVal,
+                   "Yaw": angles[0], "Pitch": angles[1],
+                   "imgPoints": imgPoints}
 
     return target_Dict
 
