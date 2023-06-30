@@ -1,0 +1,52 @@
+﻿******************************************************
+Update Date: 2022-10-24
+Version: 2.1.2
+******************************************************
+New Features and Optimizations
+1. 【MVS】Supports decoding HB format to render.
+2. 【SDK】Add MV_CC_HB_Decode API. Support decoding streams of HB format.
+
+
+******************************************************
+Update Date: 2020-12-28
+Version: 2.1.0
+******************************************************
+New Features and Optimizations
+1. 【MVS】Supports sticking camera to the top of the camera list.
+3. 【MVS】Supports setting white balance when pixel format is set to Bayer.
+4. 【MVS】Optimizes the user interface for setting cross line during live view.
+5. 【MVS】Adds histogram for viewing real-time distribution of color channels or gray values.
+6. 【SDK】Scripts automatically take effect when computer is powered on.
+7. 【SDK】Adds the retransmission functionality.
+8. 【SDK】Supports the arm-one tool chain.
+
+
+******************************************************
+Update Date：2019-07-08
+Version：1.0.0
+******************************************************
+Client Functions:
+1.  【MVS】Supported language switch between Chinese and English.
+2.  【MVS】Supported camera feature control, preview, common featrues set of GigE and USB camera.
+3.  【MVS】Supported camera capturing and recording function.
+4.  【MVS】Supported multiple camera image acquisition preview simultaneously.
+5.  【MVS】Supported 4-window, 9-window and custom window options for layout function.
+5.  【MVS】Supported camera status and embedded information .
+6.  【MVS】Supported GigE Vision Action Command. Realize GigeE camera PTP trigger.
+7.  【MVS】Supported shortcut including customzied shortcut.
+8.  【MVS】Supported GigE camera multicast function.
+9.  【MVS】Supported IP configeration function.
+10. 【MVS】Supported the edit function of cross line tool.
+11. 【MVS】Supported firmware Updater.
+12. 【MVS】Supported SDK log Viewer.
+13. 【Installation Package】Provided tar.gz compression package and deb installation package.
+14. 【SDK】Supported calling SDK by using Python.
+15. 【SDK】Added exposure end call back event.
+16. 【SDK】Added GigE camera Action Command function.
+17. 【SDK】Added function of counting error number for USB camera.
+18. 【SDK】Added image acquisition API MV_CC_GetImageBuffer with acquisition performance improvement.
+19. 【SDK】Adede Python demos.
+20. 【SDK】Added support for arm aarch64 and armhf.
+21. 【SDK】Improved data trasmission statistical informtaion, added statistics of resend packet and packets required to resend.
+22. 【SDK】Imptoved log module, added log service function.
+23. 【SDK】Supported four-frame version firmware of 29MP GigE camera.

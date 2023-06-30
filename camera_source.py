@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 
 from camera_params import camera_params, DepthSource
+from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
+from hik_driver import *
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +24,16 @@ class CameraSource:
         self._rs_frame_aligner = None
         self._cv_color_cap = None
         self._cv_depth_cap = None
+        self.hik_frame_cap = None
+        self.color_frame_writer = None
+        self.depth_frame_writer = None
+        self.active_cam_config = None
 
         if recording_source is None:
             self.active_cam_config = default_config
 
             try:
-                import pyrealsense2 as rs
-
+                import pyrealsense2.pyrealsense2 as rs
                 # Configure depth and color streams
                 pipeline = rs.pipeline()
                 config = rs.config()
@@ -42,13 +47,16 @@ class CameraSource:
                 if device_name in camera_params:
                     self.active_cam_config = camera_params[device_name]
                 else:
-                    logger.warning(f'Unknown device name: "{device_name}". Falling back to default configuration.')
+                    logger.warning(
+                        f'Unknown device name: "{device_name}". Falling back to default configuration.')
 
                 config.enable_stream(rs.stream.color, self.active_cam_config['capture_res'][0],
-                                     self.active_cam_config['capture_res'][1], rs.format.bgr8, self.active_cam_config['frame_rate'])
+                                     self.active_cam_config['capture_res'][1], rs.format.bgr8,
+                                     self.active_cam_config['frame_rate'])
 
                 if self.active_cam_config['depth_source'] == DepthSource.STEREO:
-                    config.enable_stream(rs.stream.depth, RS_DEPTH_CAPTURE_RES[0], RS_DEPTH_CAPTURE_RES[1], rs.format.z16,
+                    config.enable_stream(rs.stream.depth, RS_DEPTH_CAPTURE_RES[0], RS_DEPTH_CAPTURE_RES[1],
+                                         rs.format.z16,
                                          self.active_cam_config['frame_rate'])
                     frame_aligner = rs.align(rs.stream.color)
                 else:
@@ -58,57 +66,80 @@ class CameraSource:
                 pipeline.start(config)
 
                 # Get the sensor once at the beginning. (Sensor index: 1)
-                sensor = pipeline.get_active_profile().get_device().query_sensors()[1]
+                sensor = pipeline.get_active_profile(
+                ).get_device().query_sensors()[1]
 
                 # Set the exposure anytime during the operation
-                sensor.set_option(rs.option.exposure, self.active_cam_config['exposure'][target_color])
+                sensor.set_option(
+                    rs.option.exposure, self.active_cam_config['exposure'][target_color])
 
                 self._rs_pipeline = pipeline
                 self._rs_frame_aligner = frame_aligner
             except ImportError:
-                logger.warning('Intel RealSense backend is not available; pyrealsense2 could not be imported')
+                logger.warning(
+                    'Intel RealSense backend is not available; pyrealsense2 could not be imported')
             except RuntimeError as ex:
                 if len(ex.args) >= 1 and 'No device connected' in ex.args[0]:
                     logger.warning('No RealSense device was found')
                 else:
                     raise
-
+            # if realsense is not available
             if self._rs_pipeline is None:
-                cap = cv2.VideoCapture()  # the number here depends on your device's camera, usually default with 0
-                cap.open(cv_device_index)
+                cap = cv2.VideoCapture()
 
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-                # os.system('v4l2-ctl --device=/dev/video1 --set-ctrl=exposure_auto=2')
-                cap.set(cv2.CAP_PROP_EXPOSURE, self.active_cam_config['exposure'][target_color])
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.active_cam_config['capture_res'][0])
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.active_cam_config['capture_res'][1])
-                cap.set(cv2.CAP_PROP_FPS, self.active_cam_config['frame_rate'])
-                self._cv_color_cap = cap
+                # the number here depends on your device's camera, usually default with 0
+                if cap.isOpened():
+
+                    cap.open(cv_device_index)
+
+                    cap.set(cv2.CAP_PROP_FOURCC,
+                            cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+                    # os.system('v4l2-ctl --device=/dev/video1 --set-ctrl=exposure_auto=2')
+                    cap.set(cv2.CAP_PROP_EXPOSURE,
+                            self.active_cam_config['exposure'][target_color])
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH,
+                            self.active_cam_config['capture_res'][0])
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT,
+                            self.active_cam_config['capture_res'][1])
+                    cap.set(cv2.CAP_PROP_FPS, self.active_cam_config['frame_rate'])
+                    self._cv_color_cap = cap
+                else:  # init Hik camera
+                    self.hik_frame_init = hik_init()
+
+
         else:
-            cam_config_path = recording_source.with_name(recording_source.name + '.config.json')
+            cam_config_path = recording_source.with_name(
+                recording_source.name + '.config.json')
             with open(cam_config_path, 'r', encoding='utf8') as cam_config_file:
                 self.active_cam_config = json.load(cam_config_file)
 
-            color_frame_path = recording_source.with_name(recording_source.name + '.color.mp4')
-            depth_frame_path = recording_source.with_name(recording_source.name + '.depth.mp4')
+            color_frame_path = recording_source.with_name(
+                recording_source.name + '.color.mp4')
+            depth_frame_path = recording_source.with_name(
+                recording_source.name + '.depth.mp4')
             self._cv_color_cap = cv2.VideoCapture(str(color_frame_path))
             self._cv_depth_cap = cv2.VideoCapture(str(depth_frame_path))
 
         self.color_frame_writer = self.depth_frame_writer = None
         if recording_dest is not None:
-            cam_config_path = recording_dest.with_name(recording_dest.name + '.config.json')
+            cam_config_path = recording_dest.with_name(
+                recording_dest.name + '.config.json')
             with open(cam_config_path, 'w', encoding='utf8') as cam_config_file:
                 json.dump(self.active_cam_config, cam_config_file)
 
             # Note that using this codec requires video files to have a .mp4 extension, otherwise
             # writing frames will fail silently.
             codec = cv2.VideoWriter.fourcc('m', 'p', '4', 'v')
-            color_frame_path = recording_dest.with_name(recording_dest.name + '.color.mp4')
-            self.color_frame_writer = cv2.VideoWriter(str(color_frame_path), codec, self.active_cam_config['frame_rate'],
+            color_frame_path = recording_dest.with_name(
+                recording_dest.name + '.color.mp4')
+            self.color_frame_writer = cv2.VideoWriter(str(color_frame_path), codec,
+                                                      self.active_cam_config['frame_rate'],
                                                       self.active_cam_config['capture_res'])
             if self._rs_pipeline is not None:
-                depth_frame_path = recording_dest.with_name(recording_dest.name + '.depth.mp4')
-                self.depth_frame_writer = cv2.VideoWriter(str(depth_frame_path), codec, self.active_cam_config['frame_rate'],
+                depth_frame_path = recording_dest.with_name(
+                    recording_dest.name + '.depth.mp4')
+                self.depth_frame_writer = cv2.VideoWriter(str(depth_frame_path), codec,
+                                                          self.active_cam_config['frame_rate'],
                                                           self.active_cam_config['capture_res'])
 
     def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -130,6 +161,11 @@ class CameraSource:
                 depth_image = np.asanyarray(depth_frame.get_data())
             else:
                 depth_image = None
+
+        elif self.hik_frame_init is not None:
+            color_image = read_hik_frame(self.hik_frame_init)
+            depth_image = None
+
         elif self._cv_color_cap is not None:
             ret, color_image = self._cv_color_cap.read()
             if not ret:
@@ -141,9 +177,12 @@ class CameraSource:
                 ret, depth_image = self._cv_depth_cap.read()
                 if ret:
                     B, G, R = cv2.split(depth_image)
-                    depth_image = (B.astype(np.uint16) << 8) + (G.astype(np.uint16) << 12) + R.astype(np.uint16)
+                    depth_image = (B.astype(np.uint16) << 8) + \
+                                  (G.astype(np.uint16) << 12) + R.astype(np.uint16)
                 else:
                     depth_image = None
+
+
         else:
             raise RuntimeError('No image source available')
 
@@ -154,8 +193,9 @@ class CameraSource:
             self.color_frame_writer.write(color_image)
 
         if self.depth_frame_writer is not None and depth_image is not None:
-            storage_format_image = cv2.merge([(depth_image >> 8).astype(np.uint8), ((depth_image >> 12) % 16).astype(np.uint8),
-                                              (depth_image % 16).astype(np.uint8)])
+            storage_format_image = cv2.merge(
+                [(depth_image >> 8).astype(np.uint8), ((depth_image >> 12) % 16).astype(np.uint8),
+                 (depth_image % 16).astype(np.uint8)])
             self.depth_frame_writer.write(storage_format_image)
 
         return color_image, depth_image
@@ -169,3 +209,6 @@ class CameraSource:
 
         if self.depth_frame_writer is not None:
             self.depth_frame_writer.release()
+
+        if self.hik_frame_init is not None:
+            hik_close(self.hik_frame_init)
