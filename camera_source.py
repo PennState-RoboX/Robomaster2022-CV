@@ -7,8 +7,6 @@ import cv2
 import numpy as np
 
 from camera_params import camera_params, DepthSource
-from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
-from hik_driver import *
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +22,7 @@ class CameraSource:
         self._rs_frame_aligner = None
         self._cv_color_cap = None
         self._cv_depth_cap = None
-        self.hik_frame_cap = None
+        self.hik_frame_init = None
         self.color_frame_writer = None
         self.depth_frame_writer = None
         self.active_cam_config = None
@@ -104,6 +102,7 @@ class CameraSource:
                     cap.set(cv2.CAP_PROP_FPS, self.active_cam_config['frame_rate'])
                     self._cv_color_cap = cap
                 else:  # init Hik camera
+                    from hik_driver import hik_init
                     self.hik_frame_init = hik_init()
 
 
@@ -163,6 +162,7 @@ class CameraSource:
                 depth_image = None
 
         elif self.hik_frame_init is not None:
+            from hik_driver import read_hik_frame
             color_image = read_hik_frame(self.hik_frame_init)
             depth_image = None
 
@@ -211,4 +211,5 @@ class CameraSource:
             self.depth_frame_writer.release()
 
         if self.hik_frame_init is not None:
+            from hik_driver import hik_close
             hik_close(self.hik_frame_init)

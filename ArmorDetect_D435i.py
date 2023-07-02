@@ -178,6 +178,15 @@ def read_morphology(cap, config: CVParams):  # read cap and morphological operat
 
     return dst_dilate, frame
 
+def spherical_to_cartesian(yaw: float, pitch: float, depth: float):
+    phi = math.radians(90.0 - pitch)
+    theta = math.radians(yaw)
+    return depth * np.array([math.sin(phi) * math.cos(theta), math.sin(phi) * math.sin(theta), math.cos(phi)])
+
+def cartesian_to_spherical(coords: np.ndarray):
+    return (math.degrees(math.atan2(coords[1], coords[0])),
+            90.0 - math.degrees(math.atan2(math.sqrt(coords[0] ** 2 + coords[1] ** 2), coords[2])),
+            np.linalg.norm(coords).item())
 
 def get_3d_target_location(imgPoints, frame, depth_frame):
     camera_matrix, distort_coeffs = np.array(active_cam_config['camera_matrix'], dtype=np.float64), \
@@ -655,7 +664,9 @@ def main(camera: CameraSource, target_color: TargetColor):
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                 cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
         if success:
-
+            imu_yaw, imu_pitch, imu_roll = getIMU()
+            global_pitch, global_yaw = imu_yaw + Yaw, imu_pitch + Pitch
+            cartesian_pos = spherical_to_cartesian(global_pitch, global_yaw, depth) - np.array(camera.active_cam_config['camera_offset'])
 
             # get last target's x-position in a 1280*720 frame/ used for function "targetsFilter()"
             last_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0])/2 #[2][0]=tr [0][0]=bl
@@ -670,8 +681,8 @@ def main(camera: CameraSource, target_color: TargetColor):
                          (int(imgPoints[0][0]), int(imgPoints[0][1])),
                          (33, 255, 255), 2)
                 cv2.putText(frame, str(depth), (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, str(global_yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, str(global_pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
                 """test Kalman Filter"""
                 X = int((imgPoints[0][0] + imgPoints[2][0]) / 2)
@@ -679,36 +690,42 @@ def main(camera: CameraSource, target_color: TargetColor):
 
                 current_time = time.time()
                 if len(target_angle_history) < 1 or current_time - target_angle_history[-1][0] > max_history_frame_delta:
-                    target_angle_history = [(current_time, Yaw, Pitch)]
+                    target_angle_history = [(current_time, *cartesian_pos)]
                 else:
-                    target_angle_history.append((current_time, Yaw, Pitch))
+                    target_angle_history.append((current_time, *cartesian_pos))
 
                 if len(target_angle_history) > max_history_length:
                     target_angle_history = target_angle_history[-max_history_length:]
 
                 if len(target_angle_history) >= 2:
-                    time_hist_array, yaw_hist_array, pitch_hist_array =\
+                    time_hist_array, x_hist_array, y_hist_array, z_hist_array =\
                         np.array([item[0] for item in target_angle_history]),\
                         np.array([item[1] for item in target_angle_history]),\
-                        np.array([item[2] for item in target_angle_history])
+                        np.array([item[2] for item in target_angle_history]), \
+                        np.array([item[3] for item in target_angle_history])
 
                     time_hist_array -= time_hist_array[0]
 
                     degree = 1  # if len(target_angle_history) == 2 else 2
 
                     weights = np.linspace(float(max_history_length) - len(time_hist_array) + 1.0, float(max_history_length) + 1.0, len(time_hist_array))
-                    predicted_yaw = poly_predict(time_hist_array, yaw_hist_array, degree,
-                                        time_hist_array[-1] + prediction_future_time, weights=weights)
-                    predicted_pitch = poly_predict(time_hist_array, pitch_hist_array, degree,
-                                        time_hist_array[-1] + prediction_future_time, weights=weights)
+                    predicted_x = poly_predict(time_hist_array, x_hist_array, degree,
+                                               time_hist_array[-1] + prediction_future_time, weights=weights)
+                    predicted_y = poly_predict(time_hist_array, y_hist_array, degree,
+                                               time_hist_array[-1] + prediction_future_time, weights=weights)
+                    predicted_z = poly_predict(time_hist_array, z_hist_array, degree,
+                                               time_hist_array[-1] + prediction_future_time, weights=weights)
+
+                    predicted_yaw, predicted_pitch, _ = cartesian_to_spherical(np.array([predicted_x, predicted_y, predicted_z]))
                 else:
-                    predicted_yaw, predicted_pitch = Yaw, Pitch
+                    predicted_yaw, predicted_pitch = global_yaw, global_pitch
 
                 current_point_coords = (int(active_cam_config['fx'] * math.tan(math.radians(Yaw)) + active_cam_config['cx']),
                                         int(active_cam_config['fy'] * math.tan(math.radians(-Pitch)) + active_cam_config['cy']))
-                predicted_point_coords = (int(active_cam_config['fx'] * math.tan(math.radians(predicted_yaw)) + active_cam_config['cx']),
-                                          int(active_cam_config['fy'] * math.tan(math.radians(-predicted_pitch)) + active_cam_config['cy']))
-                cv2.line(frame, current_point_coords, predicted_point_coords, (255, 255, 255), 2)
+                predicted_point_coords = (int(active_cam_config['fx'] * math.tan(math.radians(predicted_yaw - imu_yaw)) + active_cam_config['cx']),
+                                          int(active_cam_config['fy'] * math.tan(math.radians(-(predicted_pitch - imu_pitch))) + active_cam_config['cy']))
+                cv2.circle(frame, predicted_point_coords, 4, (0, 255, 0), -1)
+                # cv2.line(frame, current_point_coords, predicted_point_coords, (255, 255, 255), 2)
                 '''
                 all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
                 return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]

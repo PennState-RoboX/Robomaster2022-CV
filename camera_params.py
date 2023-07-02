@@ -61,3 +61,6 @@ for cam_name, param_dict in camera_params.items():
     param_dict['distort_coeffs'] = [param_dict['k1'], param_dict['k2'],
                                              param_dict['p1'], param_dict['p2'],
                                              param_dict['k3']]
+
+    if 'camera_offset' not in param_dict:
+        param_dict['camera_offset'] = [0.0, 0.0, 0.0]
