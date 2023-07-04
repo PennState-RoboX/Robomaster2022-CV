@@ -16,37 +16,30 @@ New Features and Optimizations
 3. 【MVS】Supports setting white balance when pixel format is set to Bayer.
 4. 【MVS】Optimizes the user interface for setting cross line during live view.
 5. 【MVS】Adds histogram for viewing real-time distribution of color channels or gray values.
-6. 【SDK】Scripts automatically take effect when computer is powered on.
-7. 【SDK】Adds the retransmission functionality.
-8. 【SDK】Supports the arm-one tool chain.
+6. 【SDK】Adds driving functionality for X86 platform.
+7. 【SDK】Scripts automatically take effect when computer is powered on.
+8. 【SDK】Adds the retransmission functionality.
+9. 【SDK】Supports the arm-one tool chain.
 
 
 ******************************************************
-Update Date：2019-07-08
-Version：1.0.0
+Update Time：2019-11-26
+Version: 2.0.0
 ******************************************************
-Client Functions:
-1.  【MVS】Supported language switch between Chinese and English.
-2.  【MVS】Supported camera feature control, preview, common featrues set of GigE and USB camera.
-3.  【MVS】Supported camera capturing and recording function.
-4.  【MVS】Supported multiple camera image acquisition preview simultaneously.
-5.  【MVS】Supported 4-window, 9-window and custom window options for layout function.
-5.  【MVS】Supported camera status and embedded information .
-6.  【MVS】Supported GigE Vision Action Command. Realize GigeE camera PTP trigger.
-7.  【MVS】Supported shortcut including customzied shortcut.
-8.  【MVS】Supported GigE camera multicast function.
-9.  【MVS】Supported IP configeration function.
-10. 【MVS】Supported the edit function of cross line tool.
-11. 【MVS】Supported firmware Updater.
-12. 【MVS】Supported SDK log Viewer.
-13. 【Installation Package】Provided tar.gz compression package and deb installation package.
-14. 【SDK】Supported calling SDK by using Python.
-15. 【SDK】Added exposure end call back event.
-16. 【SDK】Added GigE camera Action Command function.
-17. 【SDK】Added function of counting error number for USB camera.
-18. 【SDK】Added image acquisition API MV_CC_GetImageBuffer with acquisition performance improvement.
-19. 【SDK】Adede Python demos.
-20. 【SDK】Added support for arm aarch64 and armhf.
-21. 【SDK】Improved data trasmission statistical informtaion, added statistics of resend packet and packets required to resend.
-22. 【SDK】Imptoved log module, added log service function.
-23. 【SDK】Supported four-frame version firmware of 29MP GigE camera.
+Updates and Optimizations
+1. 【MVS】Supports multiple-camera operations and multi-window-division live view.
+2. 【MVS】Added tools including Log View, Import/Export Features, and MVS_SystemInfo. 
+3. 【MVS】Supports keyboard shortcuts settings and supports customizing keyboard shortcuts.
+4. 【MVS】Supports setting cross line on live view window, which helps adjust position of target object displayed in images.
+5. 【MVS】Supports GigE Vision action command settings, which can make cameras trigger a certain action nearly simultaneously.
+6. 【MVS】Added tabs including Common Features, Trigger, and Image Processing on the Feature Tree panel.
+7. 【MVS】Optimized UI and visual design.
+8. 【SDK】Added an Action Command related interface.
+9. 【SDK】Added an interface for determining whether the camera is connected or not.
+10.【SDK】Added an interface for clearing cache of GenICam node.
+11.【SDK】Add an interface for releasing image cache.
+12.【SDK】Added an interface for acquisition with high performance.
+13.【SDK】Optimized the interface for getting various types of information. 
+14.【SDK】Added an interface for getting network transmission information. 
+
+

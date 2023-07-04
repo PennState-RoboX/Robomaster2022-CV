@@ -39,3 +39,4 @@ fi
 rm -f /etc/init.d/MvLogServer
 
 rm -f $PIDFILE
+

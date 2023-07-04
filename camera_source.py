@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 from camera_params import camera_params, DepthSource
-from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
+# from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
 from hik_driver import *
 
 logger = logging.getLogger(__name__)

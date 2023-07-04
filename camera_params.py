@@ -13,7 +13,7 @@ camera_params = {
         'exposure': {'red': 45.0, 'blue': 20.0},
         'capture_res': (1280, 720),
         'depth_source': DepthSource.PNP,
-        'fov': (90, 65)
+        'fov': (48.2, 33.3)
     },
     'Intel RealSense D435I': {
         'frame_rate': 30,
@@ -37,6 +37,14 @@ camera_params = {
         'p1': -0.000454149012521474,
         'p2': 0.00119677524381670,
         'k3': 0.0
+    },
+    'HIK cam': {
+        'frame_rate': 30,
+        'exposure': {'red': 45.0, 'blue': 20.0},
+        'capture_res': (1280, 720),
+        'depth_source': DepthSource.PNP,
+        'fov': (48.2, 33.3),
+
     }
 }
 
@@ -55,9 +63,11 @@ for cam_name, param_dict in camera_params.items():
             'k3': 0.0
         })
     param_dict['camera_matrix'] = [[param_dict['fx'], 0, param_dict['cx']],
-                                            [0, param_dict['fy'], param_dict['cy']],
-                                            [0, 0, 1]]
+                                   [0, param_dict['fy'], param_dict['cy']],
+                                   [0, 0, 1]]
 
     param_dict['distort_coeffs'] = [param_dict['k1'], param_dict['k2'],
-                                             param_dict['p1'], param_dict['p2'],
-                                             param_dict['k3']]
+                                    param_dict['p1'], param_dict['p2'],
+                                    param_dict['k3']]
+    if 'camera_offset' not in param_dict:
+        param_dict['camera_offset'] = [0.0, 0.0, 0.0]

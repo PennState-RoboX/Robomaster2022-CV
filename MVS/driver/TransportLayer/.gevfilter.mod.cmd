@@ -1,0 +1,1 @@
+cmd_/opt/MVS/driver/TransportLayer/gevfilter.mod := printf '%s\n'   mv_event.o mv_lock.o mv_atomic.o mv_memory.o mv_misc.o mv_module.o mv_netpacket.o mv_time.o mv_device.o mv_kthread.o mv_memorymap.o drvmodlib.o | awk '!x[$$0]++ { print("/opt/MVS/driver/TransportLayer/"$$0) }' > /opt/MVS/driver/TransportLayer/gevfilter.mod

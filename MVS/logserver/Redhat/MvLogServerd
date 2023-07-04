@@ -24,9 +24,9 @@ SDK_HOME=${MVCAM_SDK_PATH}
 DAEMON="${SDK_HOME}/logserver/MvLogServer"
 NAME="MvLogServer"
 PIDFILE="/var/run/MvLogServer.pid"
+
 exec_Script()
 {
-	
 	IMAGEFILTER_LOADED=`lsmod | grep -o gevfilter`
 	if [ "$IMAGEFILTER_LOADED" != "gevfilter" ]; then
 		if [ ! -f $SDK_HOME/driver/gevfilter.so ]; then
@@ -41,6 +41,7 @@ exec_Script()
 	fi
 	
 }
+
 start () {
 	if [ $UID -ne 0 ] ; then
 		echo "User has insufficient privileges."
@@ -53,19 +54,6 @@ start () {
  	RETVAL=$?
 	echo
 	[ $RETVAL = 0 ]
-	exec_Script
-	
-	if [ -f $SDK_HOME/bin/set_usbfs_memory_size.sh ]; then
-		$SDK_HOME/bin/set_usbfs_memory_size.sh
-	fi
-	
-	if [ -f $SDK_HOME/bin/set_socket_buffer_size.sh ]; then
-		$SDK_HOME/bin/set_socket_buffer_size.sh
-	fi
-	
-	if [ -f $SDK_HOME/bin/set_rp_filter.sh ]; then
-		$SDK_HOME/bin/set_rp_filter.sh
-	fi
 	
 	return 0
 }

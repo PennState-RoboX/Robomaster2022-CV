@@ -1,38 +1,82 @@
 import serial
 import time
-def setUpSerial():
-    ser = serial.Serial('/dev/ttyTHS2', 115200, timeout = 0.5)
-    #ser.open()
+import re
 
-def send_data(ser,hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, fire_command, sumAll): #Angles are in Byte Formact
-    #packet = b'\x0d' #header
-    #packet = packet + angleA
-    #packet = packet + angleB
-    #packet = packet + angleC
-    #packet = packet + b'\x03' #not used
-    #packet = packet + b'\x04'
-    #packet = packet + b'\x00'
-    #packet = packet + b'\x04'
-    #packet = packet + b'\x00'
-    #packet = packet + b'\x04'
-    #packet = packet + b'\x00'
-    packet = 'a5' #Header Byte
+
+def setUpSerial():
+    ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=0.5)
+    return ser
+
+
+# Angles are in Byte Formact
+def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll):
+    # packet = b'\x0d' #header
+    # packet = packet + angleA
+    # packet = packet + angleB
+    # packet = packet + angleC
+    # packet = packet + b'\x03' #not used
+    # packet = packet + b'\x04'
+    # packet = packet + b'\x00'
+    # packet = packet + b'\x04'
+    # packet = packet + b'\x00'
+    # packet = packet + b'\x04'
+    # packet = packet + b'\x00'
+    packet = 'a5'  # Header Byte
     packet = packet + '5a'
-    packet = packet + '09' # Length of Packet
+    packet = packet + '08'  # Length of Packet
     packet = packet + hex_int_Pitch
     packet = packet + hex_deci_Pitch
     packet = packet + hex_int_Yaw
     packet = packet + hex_deci_Yaw
-    packet = packet + fire_command
+    # packet = packet + fire_command
     packet = packet + sumAll
     packet = packet + 'ff'
-    print(packet) # Packat before Conversion
+    # print(packet)  # Packat before Conversion
     packet = bytes.fromhex(packet)
-    print(packet) #Packet Get Sent
+    # print(packet)  # Packet Get Sent
     ser.write(packet)
 
+def get_imu(ser):
+    buffer_size = ser.in_waiting
+    imu_value = [None, None, None]
+    counter = 0
 
-#Below are example of how to use this utility
+    while True:
+        raw_data = ser.readline()
+        data = raw_data.decode('latin-1').strip()
+        counter += len(raw_data)  # Count bytes
+
+        try:
+            if data.startswith('Y:'):
+                imu_value[0] = float(data.split(':')[1].strip())
+            elif data.startswith('P:'):
+                imu_value[1] = float(data.split(':')[1].strip())
+            elif data.startswith('R:'):
+                imu_value[2] = float(data.split(':')[1].strip())
+        except ValueError:
+            continue  # If we can't convert the value to a float, skip this line
+
+        if all(value is not None for value in imu_value):
+            # If we have a complete set of IMU data and we have processed all data in the buffer
+            # then we can break the loop
+            if counter >= buffer_size:
+                break
+
+    # return imu data, [0]:yaw,[1]:pitch,[2]:roll
+    return imu_value
+
+
+
+
+# # Example usage
+if __name__ == '__main__':
+    ser = setUpSerial()
+    while True:
+        imu = get_imu(ser)
+        print(imu)
+
+
+# Below are example of how to use this utility
 '''
 ser = serial.Serial('/dev/ttyTHS2', 115200)
 

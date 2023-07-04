@@ -28,17 +28,6 @@ PIDFILE="/var/run/MvLogServer.pid"
 
 exec_Script()
 {
-	if [ -f $SDK_HOME/bin/set_usbfs_memory_size.sh ]; then
-		$SDK_HOME/bin/set_usbfs_memory_size.sh
-	fi
-	
-	if [ -f $SDK_HOME/bin/set_socket_buffer_size.sh ]; then
-		$SDK_HOME/bin/set_socket_buffer_size.sh
-	fi
-	
-	if [ -f $SDK_HOME/bin/set_rp_filter.sh ]; then
-		$SDK_HOME/bin/set_rp_filter.sh
-	fi
 	IMAGEFILTER_LOADED=`lsmod | grep -o gevfilter`
 	if [ "$IMAGEFILTER_LOADED" != "gevfilter" ]; then
 		if [ ! -f $SDK_HOME/driver/gevfilter.so ]; then
@@ -107,7 +96,6 @@ status()
 case "$1" in
     start)
         start
-		exec_Script
         ;;
     stop)
         stop
