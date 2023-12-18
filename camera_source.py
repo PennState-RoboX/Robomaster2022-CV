@@ -2,11 +2,12 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, Tuple, Optional
-
 import cv2
 import numpy as np
-
 from camera_params import camera_params, DepthSource
+# from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
+from hik_driver import *
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class CameraSource:
         self._rs_frame_aligner = None
         self._cv_color_cap = None
         self._cv_depth_cap = None
-        self.hik_frame_init = None
+        self.hik_frame_cap = None
         self.color_frame_writer = None
         self.depth_frame_writer = None
         self.active_cam_config = None
@@ -31,10 +32,14 @@ class CameraSource:
             self.active_cam_config = default_config
 
             try:
-                import pyrealsense2.pyrealsense2 as rs
+
+                import pyrealsense2 as rs
+
+
                 # Configure depth and color streams
                 pipeline = rs.pipeline()
                 config = rs.config()
+
 
                 # Get device product line for setting a supporting resolution
                 pipeline_wrapper = rs.pipeline_wrapper(pipeline)
@@ -102,7 +107,6 @@ class CameraSource:
                     cap.set(cv2.CAP_PROP_FPS, self.active_cam_config['frame_rate'])
                     self._cv_color_cap = cap
                 else:  # init Hik camera
-                    from hik_driver import hik_init
                     self.hik_frame_init = hik_init()
 
 
@@ -162,7 +166,6 @@ class CameraSource:
                 depth_image = None
 
         elif self.hik_frame_init is not None:
-            from hik_driver import read_hik_frame
             color_image = read_hik_frame(self.hik_frame_init)
             depth_image = None
 
@@ -210,6 +213,5 @@ class CameraSource:
         if self.depth_frame_writer is not None:
             self.depth_frame_writer.release()
 
-        if self.hik_frame_init is not None:
-            from hik_driver import hik_close
-            hik_close(self.hik_frame_init)
+        # if self.hik_frame_init is not None:
+        #     hik_close(self.hik_frame_init)

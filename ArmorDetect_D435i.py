@@ -2,12 +2,10 @@ import enum
 import math
 import pathlib
 from dataclasses import dataclass
-
-import pyrealsense2 as rs
 import cv2
 import numpy as np
 import serial
-from UART_UTIL import setUpSerial, send_data
+from UART_UTIL import setUpSerial, send_data, get_imu
 from camera_source import CameraSource
 from kinematic_prediction import poly_predict
 from solve_Angle import solve_Angle455
@@ -22,25 +20,28 @@ from KalmanFilterClass import KalmanFilter
 active_cam_config = None
 frame_aligner = None
 
+
 def nothing(x):
     pass
+
 
 class TargetColor(enum.Enum):
     RED = 'red'
     BLUE = 'blue'
 
+
 class CVParams:
     def __init__(self, target_color: TargetColor):
         self.target_color = target_color
         if target_color == TargetColor.RED:
-            self.hue_min, self.hue_min_range = 170, (0, 180, 1)
-            self.hue_max, self.hue_max_range = 180, (0, 180, 1)
-            self.saturation_min, self.saturation_min_range = 20, (0, 255, 1)
-            self.value_min, self.value_min_range = 128, (0, 255, 1)
+            self.hue_min, self.hue_min_range = 4, (0, 180, 1)
+            self.hue_max, self.hue_max_range = 30, (0, 180, 1)
+            self.saturation_min, self.saturation_min_range = 218, (0, 255, 1)
+            self.value_min, self.value_min_range = 111, (0, 255, 1)
 
-            self.close_size = 15
-            self.erode_size = 2
-            self.dilate_size = 3
+            self.close_size = 1
+            self.erode_size = 1
+            self.dilate_size = 5
         else:
             self.hue_min, self.hue_min_range = 90, (0, 180, 1)
             self.hue_max, self.hue_max_range = 120, (0, 180, 1)
@@ -51,7 +52,8 @@ class CVParams:
             self.erode_size = 2
             self.dilate_size = 2
 
-        self.close_size_range = self.erode_size_range = self.dilate_size_range = (1, 20, 1)
+        self.close_size_range = self.erode_size_range = self.dilate_size_range = (
+            1, 20, 1)
 
         self.bar_aspect_ratio_min = 1.1
         self.bar_aspect_ratio_max = 13.0
@@ -66,13 +68,15 @@ def createTrackbarsForParams(window_name: str, params: CVParams):
     for key, value in params.__dict__.items():
         if not key.endswith('_range') and type(value) in [int, float]:
             if hasattr(params, key + '_range'):
-                slider_min, slider_max, scaling = getattr(params, key + '_range')
+                slider_min, slider_max, scaling = getattr(
+                    params, key + '_range')
             else:
                 slider_min = 10 ** math.floor(math.log10(value))
                 slider_max = 10 * slider_min
                 scaling = 0.01
 
-            cv2.createTrackbar(key, window_name, int(slider_min / scaling), int(slider_max / scaling), nothing)
+            cv2.createTrackbar(key, window_name, int(
+                slider_min / scaling), int(slider_max / scaling), nothing)
             cv2.setTrackbarPos(key, window_name, int(value / scaling))
 
 
@@ -84,7 +88,8 @@ def updateParamsFromTrackbars(window_name: str, params: CVParams):
             else:
                 scaling = 0.01
 
-            setattr(params, key, cv2.getTrackbarPos(key, window_name) * scaling)
+            setattr(params, key, cv2.getTrackbarPos(
+                key, window_name) * scaling)
 
 
 # def createTrackbars():  # creat trackbar to adjust the color threshold.
@@ -120,10 +125,12 @@ def dilate_binary(binary, x, y):
     return dst
 
 
-def read_morphology(cap, config: CVParams):  # read cap and morphological operation to get led binary image.
+# read cap and morphological operation to get led binary image.
+def read_morphology(cap, config: CVParams):
     frame = cap
     # frame = unread_morphologydistort(frame)
-    H, S, V = cv2.split(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV))  # Split channels
+    H, S, V = cv2.split(cv2.cvtColor(
+        frame, cv2.COLOR_BGR2HSV))  # Split channels
 
     """
     Method1: subtract the opposite color's channel with the desired color channel(For Red:R-B or For Blue:B-R)
@@ -166,9 +173,11 @@ def read_morphology(cap, config: CVParams):  # read cap and morphological operat
     #     erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
     #     dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
     # dst_open = open_binary(mask, open, open) currently not needed
-    dst_close = close_binary(mask_processed, config.close_size, config.close_size)
+    dst_close = close_binary(
+        mask_processed, config.close_size, config.close_size)
     dst_erode = erode_binary(dst_close, config.erode_size, config.erode_size)
-    dst_dilate = dilate_binary(dst_erode, config.dilate_size, config.dilate_size)
+    dst_dilate = dilate_binary(
+        dst_erode, config.dilate_size, config.dilate_size)
 
     if debug:
         """
@@ -178,27 +187,36 @@ def read_morphology(cap, config: CVParams):  # read cap and morphological operat
 
     return dst_dilate, frame
 
+
 def spherical_to_cartesian(yaw: float, pitch: float, depth: float):
     phi = math.radians(90.0 - pitch)
     theta = math.radians(yaw)
     return depth * np.array([math.sin(phi) * math.cos(theta), math.sin(phi) * math.sin(theta), math.cos(phi)])
 
+
 def cartesian_to_spherical(coords: np.ndarray):
     return (math.degrees(math.atan2(coords[1], coords[0])),
-            90.0 - math.degrees(math.atan2(math.sqrt(coords[0] ** 2 + coords[1] ** 2), coords[2])),
+            90.0 -
+            math.degrees(math.atan2(
+                math.sqrt(coords[0] ** 2 + coords[1] ** 2), coords[2])),
             np.linalg.norm(coords).item())
+
 
 def get_3d_target_location(imgPoints, frame, depth_frame):
     camera_matrix, distort_coeffs = np.array(active_cam_config['camera_matrix'], dtype=np.float64), \
-                                    np.array(active_cam_config['distort_coeffs'], dtype=np.float64)
-    imgPoints = cv2.undistortPoints(imgPoints, camera_matrix, distort_coeffs, P=camera_matrix)[:, 0, :]
+        np.array(active_cam_config['distort_coeffs'], dtype=np.float64)
+    imgPoints = cv2.undistortPoints(
+        imgPoints, camera_matrix, distort_coeffs, P=camera_matrix)[:, 0, :]
     center_point = np.average(imgPoints, axis=0)
-    center_offset = center_point - np.array([active_cam_config['cx'], active_cam_config['cy']])
+    center_offset = center_point - \
+        np.array([active_cam_config['cx'], active_cam_config['cy']])
     center_offset[1] = -center_offset[1]
-    angles = np.rad2deg(np.arctan2(center_offset, np.array([active_cam_config['fx'], active_cam_config['fy']])))
+    angles = np.rad2deg(np.arctan2(center_offset, np.array(
+        [active_cam_config['fx'], active_cam_config['fy']])))
 
     if active_cam_config['depth_source'] == DepthSource.PNP:
-        width_size_half = 70  # small armor board's width(include light bar's width)
+        # small armor board's width(include light bar's width)
+        width_size_half = 70
         height_size_half = 62.5  # small armor board's height
         '''Here's D455 RGB's features with 1280*480'''
 
@@ -213,8 +231,10 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
     elif active_cam_config['depth_source'] == DepthSource.STEREO:
         assert depth_frame is not None
         panel_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-        cv2.drawContours(panel_mask, [imgPoints.astype(np.int64)], -1, 1, thickness=cv2.FILLED)
-        panel_mask_scaled = cv2.resize(panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
+        cv2.drawContours(panel_mask, [imgPoints.astype(
+            np.int64)], -1, 1, thickness=cv2.FILLED)
+        panel_mask_scaled = cv2.resize(
+            panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
         meanDVal, _ = cv2.meanStdDev(depth_frame, mask=panel_mask_scaled)
     else:
         raise RuntimeError('Invalid depth source in camera config')
@@ -224,6 +244,7 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
                    "imgPoints": imgPoints}
 
     return target_Dict
+
 
 @dataclass
 class ImageRect:
@@ -254,14 +275,16 @@ class ImageRect:
         return 90.0 - np.rad2deg(np.arctan2(self.height_vec[1], self.height_vec[0]))
 
 
-
-def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find contours and main screening section
+# find contours and main screening section
+def find_contours(config: CVParams, binary, frame, depth_frame, fps):
     global num
-    contours, heriachy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, heriachy = cv2.findContours(
+        binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     length = len(contours)
     first_data = []  # include all potential light bar's contourArea information dict by dict
     second_data = []
-    potential_Targets = []  # all potential target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
+    # all potential target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
+    potential_Targets = []
     # target_Dict = dict() # per target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
 
     if length > 0:
@@ -281,19 +304,24 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
             # rh = rect[1][1]  # rect's height
             # z = rect[2]  # rect's Rotation angle, θ
 
-            coor = cv2.boxPoints(rect).astype(np.int)  # coordinates of the four vertices of the rectangle
+            # coordinates of the four vertices of the rectangle
+            coor = cv2.boxPoints(rect).astype(np.int)
 
             rect_param = findVerticesOrder(coor)  # output order: [bl,tl,tr,br]
             rect = ImageRect(rect_param)
 
-            cv2.circle(frame, rect.points[0], 9, (255, 255, 255), -1)  # test armor_tr
-            cv2.circle(frame, rect.points[1], 9, (0, 255, 0), -1)  # test armor_tl
-            cv2.circle(frame, rect.points[2], 9, (255, 255, 0), -1)  # test bottom left
-            cv2.circle(frame, rect.points[3], 9, (0, 100, 250), -1)  # test bottom left
+            cv2.circle(frame, rect.points[0], 9,
+                       (255, 255, 255), -1)  # test armor_tr
+            cv2.circle(frame, rect.points[1], 9,
+                       (0, 255, 0), -1)  # test armor_tl
+            # test bottom left
+            cv2.circle(frame, rect.points[2], 9, (255, 255, 0), -1)
+            # test bottom left
+            cv2.circle(frame, rect.points[3], 9, (0, 100, 250), -1)
 
-            #box = np.int0(coor)
-            #cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
-            #print("rh: ",rh, "rw: ",rw,"z: ",z)
+            # box = np.int0(coor)
+            # cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
+            # print("rh: ",rh, "rw: ",rw,"z: ",z)
 
             """filer out undesired rectangle, only keep lightBar-like shape"""
             """90--->45-->0-center(horizontally)->90-->45-->0"""
@@ -303,7 +331,8 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
 
                 first_data.append(rect)
                 box = np.int0(coor)
-                cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)  # test countor minRectangle
+                # test countor minRectangle
+                cv2.drawContours(frame, [box], -1, (255, 0, 0), 3)
 
         for i in range(len(first_data)):
             nextRect = i + 1
@@ -318,9 +347,11 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
 
                 nextRect = nextRect + 1
 
-        for r1, r2 in second_data: #find vertices for each
-            if abs(r1.points[0][1] - r2.points[2][1]) <= 3 * (abs(r1.points[0][0] - r2.points[2][0])): #if find potential bounded lightbar formed targets
-                left_bar, right_bar = (r1, r2) if r1.points[3][0] <= r2.points[3][0] else (r2, r1)
+        for r1, r2 in second_data:  # find vertices for each
+            # if find potential bounded lightbar formed targets
+            if abs(r1.points[0][1] - r2.points[2][1]) <= 3 * (abs(r1.points[0][0] - r2.points[2][0])):
+                left_bar, right_bar = (
+                    r1, r2) if r1.points[3][0] <= r2.points[3][0] else (r2, r1)
                 left_side_vec = (left_bar.points[0] - left_bar.points[1]) / 2
                 right_side_vec = (left_bar.points[3] - left_bar.points[2]) / 2
 
@@ -329,7 +360,8 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
                     [left_bar.points[0] + left_side_vec, left_bar.points[1] - left_side_vec,
                      right_bar.points[2] - right_side_vec, right_bar.points[3] + right_side_vec],
                     dtype=np.float64)
-                target_Dict = get_3d_target_location(imgPoints, frame, depth_frame)
+                target_Dict = get_3d_target_location(
+                    imgPoints, frame, depth_frame)
                 potential_Targets.append(target_Dict)
 
                 if debug:
@@ -343,11 +375,14 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
                                                    [armboard_width, armboard_height]])
 
                     # Compute the transformation matrix
-                    trans_mat = cv2.getPerspectiveTransform(coordinate_before, coordinate_after)
+                    trans_mat = cv2.getPerspectiveTransform(
+                        coordinate_before, coordinate_after)
                     # Perform transformation and show the result
-                    trans_img = cv2.warpPerspective(frame, trans_mat, (armboard_width, armboard_height))
+                    trans_img = cv2.warpPerspective(
+                        frame, trans_mat, (armboard_width, armboard_height))
 
-                    trans_img = np.array(255 * (trans_img / 255) ** 0.5, dtype='uint8')
+                    trans_img = np.array(
+                        255 * (trans_img / 255) ** 0.5, dtype='uint8')
 
                     # Zero light bar effect on image edges
                     # Define the number of pixel zeroed
@@ -364,54 +399,55 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):  # find co
 
                     # Convert to grayscale image
                     gray_img = cv2.cvtColor(trans_img, cv2.COLOR_BGR2GRAY)
-                    #cv2.imshow("dila_img", gray_img)
+                    # cv2.imshow("dila_img", gray_img)
                     # Convert to binary image
-                    #_, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
+                    # _, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
                     # Erosion and dilation to denoise
                     # Define the kernel (5 pixel * 5 pixel square)
-                    #kernel = np.ones((2, 2), np.uint8)
-                    #erode_img = cv2.erode(binary_img, kernel, iterations=1)
-                    #dila_img = cv2.dilate(erode_img, kernel, iterations=1)
+                    # kernel = np.ones((2, 2), np.uint8)
+                    # erode_img = cv2.erode(binary_img, kernel, iterations=1)
+                    # dila_img = cv2.dilate(erode_img, kernel, iterations=1)
 
                     cv2.imshow("dila_img", gray_img)
 
-                #cv2.imwrite('c:/Users/Shiao/Desktop/4/{}.png'.format(num), gray_img)
+                # cv2.imwrite('c:/Users/Shiao/Desktop/4/{}.png'.format(num), gray_img)
                 num += 1
 
                 cv2.putText(frame, "Potentials:", (int(imgPoints[2][0]), int(imgPoints[2][1]) - 5), cv2.FONT_HERSHEY_SIMPLEX,
                             0.5, [255, 255, 255])
                 center = np.average(imgPoints, axis=0).astype(np.int)
-                cv2.circle(frame, center, 2, (0, 0, 255), -1)  # draw the center of the detected armor board
-                #print("Target at (x,y) = (" + str(X) + "," + str(Y) + ")")
+                # draw the center of the detected armor board
+                cv2.circle(frame, center, 2, (0, 0, 255), -1)
+                # print("Target at (x,y) = (" + str(X) + "," + str(Y) + ")")
 
-                #print(potential_Targets)
-
+                # print(potential_Targets)
 
         # else:
         # print("Looking for Targets...")
 
-
         return potential_Targets
 
-def targetsFilter(potential_Targetsets, frame,last_target_x):
+
+def targetsFilter(potential_Targetsets, frame, last_target_x):
     '''
     target with Number & greatest credits wins in filter process
     Credit Consideration: Area, Depth, Pitch, Yaw
     Credit Scale: 1 - 3
     '''
     max_Credit = 0
-    best_Target = [] # order: [depth, Yaw, Pitch, imgpoints]
-    all_distance_diff = [] # every target's x-axis distance between last target
+    best_Target = []  # order: [depth, Yaw, Pitch, imgpoints]
+    all_distance_diff = []  # every target's x-axis distance between last target
 
     if last_target_x != None:
         for target in potential_Targetsets:
             imgPoints = target.get("imgPoints", 0)
 
             # current target's x-axis in a 1280*720 frame
-            curr_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0]) / 2
+            curr_target_x = imgPoints[0][0] + \
+                (imgPoints[2][0] - imgPoints[0][0]) / 2
 
             all_distance_diff.append(abs(curr_target_x - last_target_x))
-        sort_index = np.argsort(all_distance_diff) # order: small to large
+        sort_index = np.argsort(all_distance_diff)  # order: small to large
         closest_target = potential_Targetsets[sort_index[0]]
         depth = float(closest_target.get("depth", 0))
         Yaw = float(closest_target.get("Yaw", 0))
@@ -419,26 +455,24 @@ def targetsFilter(potential_Targetsets, frame,last_target_x):
         imgPoints = closest_target.get("imgPoints", 0)
         best_Target = [depth, Yaw, Pitch, imgPoints]
 
-
         return best_Target
-
-
 
     for target in potential_Targetsets:
         depth = float(target.get("depth", 0))
         Yaw = float(target.get("Yaw", 0))
         Pitch = float(target.get("Pitch", 0))
         imgPoints = target.get("imgPoints", 0)
-        sub_x = target.get("sub_x", 0) # sub_x is abs(curr_target_x - last_target_x)
+        # sub_x is abs(curr_target_x - last_target_x)
+        sub_x = target.get("sub_x", 0)
 
         # current target's x-axis in a 1280*720 frame
-        curr_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0]) / 2
-        #print("curretn: ",curr_target_x, "last: ", last_target_x)
+        curr_target_x = imgPoints[0][0] + \
+            (imgPoints[2][0] - imgPoints[0][0]) / 2
+        # print("curretn: ",curr_target_x, "last: ", last_target_x)
 
         # target with greatest credits wins in filter process;total_Credit = depth credit + angle credit
         depth_Credit = 0
         angle_Credit = 0
-
 
         """get area; distort caused large variation; failed so far"""
         '''
@@ -472,8 +506,8 @@ def targetsFilter(potential_Targetsets, frame,last_target_x):
             best_Target = [depth, Yaw, Pitch, imgPoints]
 
     imgPoints = best_Target[3]
-    #cv2.line(frame, (int(imgPoints[1][0]+10), int(imgPoints[1][1])), (int(imgPoints[3][0]+10), int(imgPoints[3][1])), (255, 255, 255), 2)
-    #cv2.line(frame, (int(imgPoints[2][0]+10), int(imgPoints[2][1])), (int(imgPoints[0][0]+10), int(imgPoints[0][1])), (255, 255, 255), 2)
+    # cv2.line(frame, (int(imgPoints[1][0]+10), int(imgPoints[1][1])), (int(imgPoints[3][0]+10), int(imgPoints[3][1])), (255, 255, 255), 2)
+    # cv2.line(frame, (int(imgPoints[2][0]+10), int(imgPoints[2][1])), (int(imgPoints[0][0]+10), int(imgPoints[0][1])), (255, 255, 255), 2)
 
     return best_Target
 
@@ -484,15 +518,14 @@ def clipRect(rect_xywh, size):
     return clipped_x, clipped_y, min(max(w, 0), size[0] - clipped_x), min(max(h, 0), size[1] - clipped_y)
 
 
-
 def findVerticesOrder(pts):
     ''' sort rectangle points by clockwise '''
     # sort y-axis only
     sort_x = pts[np.argsort(pts[:, 1]), :]
     # get top 2 [x,y]
-    Bottom = sort_x[2:, :]#bot
+    Bottom = sort_x[2:, :]  # bot
 
-    Top = sort_x[:2, :]#top
+    Top = sort_x[:2, :]  # top
 
     # Bottom sort: Bottom[0] = bl ;  Bottom[1] = br
     Bottom = Bottom[np.argsort(Bottom[:, 0]), :]
@@ -500,44 +533,53 @@ def findVerticesOrder(pts):
     # Top sort: Top[0] = tl ; Top[1] = tr
     Top = Top[np.argsort(Top[:, 0]), :]
 
-    #print(Bottom[0], Top[0], Top[1], Bottom[1])
+    # print(Bottom[0], Top[0], Top[1], Bottom[1])
     return np.stack([Bottom[0], Top[0], Top[1], Bottom[1]], axis=0)
 
 
-
-
-
-def decimalToHexSerial(Yaw,Pitch):
+def decimalToHexSerial(Yaw, Pitch):
     '''for int part'''
-    int_Pitch = int(Pitch + 50) # for check sum
-    hex_int_Pitch = str(hex(int_Pitch))  # form: 0xa; encode -45 degree to -45+50=5 degree
+    int_Pitch = int(Pitch + 50)  # for check sum
+    # form: 0xa; encode -45 degree to -45+50=5 degree
+    hex_int_Pitch = str(hex(int_Pitch))
     hex_int_Pitch = ('0' + hex_int_Pitch[2:])[-2:]  # delete '0x'
 
-    int_Yaw = int(Yaw + 50) # for check sum
+    int_Yaw = int(Yaw + 50)  # for check sum
     hex_int_Yaw = str(hex(int_Yaw))  # encode -45 degree to -45+50=5 degree
     hex_int_Yaw = ('0' + hex_int_Yaw[2:])[-2:]
 
     '''for decimal part to serial hex: input -314.159 output ===> 10'''
-    deci_Pitch = format(math.modf(abs(Pitch))[0], '.2f')  # decimal part is always positive
+    deci_Pitch = format(math.modf(abs(Pitch))[
+                        0], '.2f')  # decimal part is always positive
     str_deci_Pitch = str(deci_Pitch)[-2:]
     int_deci_Pitch = int(str_deci_Pitch)  # for check sum
     hex_deci_Pitch = str(hex(int_deci_Pitch))
-    hex_deci_Pitch = ('0' + hex_deci_Pitch[2:])[-2:]  # to transfer by serial; form:314.159 => 16
+    # to transfer by serial; form:314.159 => 16
+    hex_deci_Pitch = ('0' + hex_deci_Pitch[2:])[-2:]
 
-    deci_Yaw = format(math.modf(abs(Yaw))[0], '.2f')  # decimal part is always positive
+    # decimal part is always positive
+    deci_Yaw = format(math.modf(abs(Yaw))[0], '.2f')
     str_deci_Yaw = str(deci_Yaw)[-2:]
     int_deci_Yaw = int(str_deci_Yaw)  # for check sum
     hex_deci_Yaw = str(hex(int_deci_Yaw))
-    hex_deci_Yaw = ('0' + hex_deci_Yaw[2:])[-2:]  # to transfer by serial; form:314.159 => 16
+    # to transfer by serial; form:314.159 => 16
+    hex_deci_Yaw = ('0' + hex_deci_Yaw[2:])[-2:]
 
-    int_sumAll = int_Pitch + int_Yaw + int_deci_Pitch + int_deci_Yaw + 9
+    pkt_len = 8
+    int_sumAll = int_Pitch + int_Yaw + int_deci_Pitch + int_deci_Yaw + pkt_len
     hex_sumAll = str(hex(int_sumAll))
-    hex_sumAll = ('0' + hex_sumAll[2:])[-2:]  #delete '0x'
+    hex_sumAll = ('0' + hex_sumAll[2:])[-2:]  # delete '0x'
 
-    serial_lst = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
+    serial_lst = [hex_int_Pitch, hex_deci_Pitch,
+                  hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
     return serial_lst
 
+
 def main(camera: CameraSource, target_color: TargetColor):
+    """
+    Important commit updates: umature pred-imu; 50 deg limit; HSV red adj; get_imu; MVS arch rebuild ---- Shiao
+
+    """
     cv_config = CVParams(target_color)
 
     if debug:
@@ -545,12 +587,12 @@ def main(camera: CameraSource, target_color: TargetColor):
         createTrackbarsForParams("CV Parameters", cv_config)
         cv2.resizeWindow("CV Parameters", 800, 180)
 
-    #test Kalman Filter Opencv
+    # test Kalman Filter Opencv
     kf = KalmanFilter()
 
     ser = None
     try:
-        ser = serial.Serial('com3', 115200)
+        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=0.5)
     except serial.SerialException:
         logger.warning('Failed to open serial port')
 
@@ -565,29 +607,41 @@ def main(camera: CameraSource, target_color: TargetColor):
     tracking_frames = 0
     max_tracking_frames = 15
     max_history_length = 8  # Maximum number of samples to use for prediction
-    prediction_future_time = 0.2  # How far into the future (in seconds) to predict the target's motion
-    max_history_frame_delta = 0.15  # Maximum time allowed (in seconds) between history frames (otherwise history will restart)
-                                    # This should be long enough to allow a dropped frame or two, but not long enough to
-                                    # allow unrelated detections to be grouped together.
+    # How far into the future (in seconds) to predict the target's motion
+    prediction_future_time = 0.2
+    # Maximum time allowed (in seconds) between history frames (otherwise history will restart)
+    max_history_frame_delta = 0.15
+    # This should be long enough to allow a dropped frame or two, but not long enough to
+    # allow unrelated detections to be grouped together.
     target_angle_history = []
+
+    data_log_file = open('data_log_HIK_A_neg_ipad_target_move.csv', 'w')
 
     # counter for kalman
     countKalman = 1
     while True:
+        "to calculate fps"
+        startTime = time.time()
+
         if debug:
             updateParamsFromTrackbars("CV Parameters", cv_config)
 
         color_image, depth_image = camera.get_frames()
 
         """Do detection"""
-        binary, frame = read_morphology(color_image, cv_config)  # changed read_morphology()'s output from binary to mask
+        binary, frame = read_morphology(
+            color_image, cv_config)  # changed read_morphology()'s output from binary to mask
 
-        potential_Targetsets = find_contours(cv_config, binary, frame, depth_image, fps) # get the list with all potential targets' info
+        # get the list with all potential targets' info
+        potential_Targetsets = find_contours(
+            cv_config, binary, frame, depth_image, fps)
 
-        if potential_Targetsets: # if returned any potential targets
+        if potential_Targetsets:  # if returned any potential targets
             success = True
-            if len(potential_Targetsets)>1:
-                final_Target = targetsFilter(potential_Targetsets,frame,last_target_x) # filter out fake & bad targets and lock on single approachable target
+            if len(potential_Targetsets) > 1:
+                # filter out fake & bad targets and lock on single approachable target
+                final_Target = targetsFilter(
+                    potential_Targetsets, frame, last_target_x)
 
                 depth = float(final_Target[0])
                 Yaw = float(final_Target[1])
@@ -609,12 +663,12 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             tracking_frames = 0
 
-
-
             target_coor_tl_x = int(target_coor[1][0])
             target_coor_tl_y = int(target_coor[1][1])
-            target_coor_width = abs(int(target_coor[2][0]) - int(target_coor[1][0]))
-            target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
+            target_coor_width = abs(
+                int(target_coor[2][0]) - int(target_coor[1][0]))
+            target_coor_height = abs(
+                int(target_coor[1][1]) - int(target_coor[0][1]))
 
             # bbox format:  (init_x,init_y,w,h)
             bbox = (target_coor_tl_x - target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10,
@@ -624,15 +678,14 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             # init the tracker with target detected frame & target coordinace
 
-            if bbox[2] >= 10 and bbox[3] >= 10:
-                tracker = cv2.TrackerKCF_create()
-                tracker.init(color_image, tuple(int(x) for x in bbox))
-            else:
-                tracker = None
+            # if bbox[2] >= 10 and bbox[3] >= 10:
+            #     tracker = cv2.TrackerKCF_create()
+            #     tracker.init(color_image, tuple(int(x) for x in bbox))
+            # else:
+            #     tracker = None
         else:
             # if tracking_frames == 0:
             #     sensor.set_option(rs.option.exposure, 88.000)
-
 
             if tracker is not None and tracking_frames < max_tracking_frames:
                 tracking_frames += 1
@@ -655,7 +708,8 @@ def main(camera: CameraSource, target_color: TargetColor):
                 imgPoints = np.array(
                     [[armor_bl_x, armor_bl_y], [armor_tl_x, armor_tl_y], [armor_tr_x, armor_tr_y],
                      [armor_br_x, armor_br_y]], dtype=np.float64)
-                target_Dict = get_3d_target_location(imgPoints, color_image, depth_image)
+                target_Dict = get_3d_target_location(
+                    imgPoints, color_image, depth_image)
                 depth, Yaw, Pitch = target_Dict['depth'], target_Dict['Yaw'], target_Dict['Pitch']
                 # depth = float(tvec[2][0])
 
@@ -664,14 +718,23 @@ def main(camera: CameraSource, target_color: TargetColor):
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                 cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
         if success:
-            imu_yaw, imu_pitch, imu_roll = getIMU()
-            global_pitch, global_yaw = imu_yaw + Yaw, imu_pitch + Pitch
-            cartesian_pos = spherical_to_cartesian(global_pitch, global_yaw, depth) - np.array(camera.active_cam_config['camera_offset'])
+
+            # imu_yaw, imu_pitch, imu_roll = 20,20,20
+            # Comment this line when imu is not connected
+            imu_yaw, imu_pitch, imu_roll = get_imu(ser)
+            imu_yaw *= -1.2
+            imu_pitch *= -1.2
+            print(imu_yaw, imu_pitch, imu_roll)
+            global_yaw, global_pitch = imu_yaw + Yaw, imu_pitch + Pitch
+            cartesian_pos = spherical_to_cartesian(
+                global_yaw, global_pitch,  depth) - np.array(camera.active_cam_config['camera_offset'])
 
             # get last target's x-position in a 1280*720 frame/ used for function "targetsFilter()"
-            last_target_x = imgPoints[0][0] + (imgPoints[2][0] - imgPoints[0][0])/2 #[2][0]=tr [0][0]=bl
+            # [2][0]=tr [0][0]=bl
+            last_target_x = imgPoints[0][0] + \
+                (imgPoints[2][0] - imgPoints[0][0])/2
 
-            #last_target_y = imgPoints[0][1] - imgPoints[3][1]
+            # last_target_y = imgPoints[0][1] - imgPoints[3][1]
 
             if (-30 < Pitch < 30) and (-45 < Yaw < 45):
                 cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])),
@@ -680,9 +743,12 @@ def main(camera: CameraSource, target_color: TargetColor):
                 cv2.line(frame, (int(imgPoints[2][0]), int(imgPoints[2][1])),
                          (int(imgPoints[0][0]), int(imgPoints[0][1])),
                          (33, 255, 255), 2)
-                cv2.putText(frame, str(depth), (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(global_yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(global_pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, str(depth), (90, 20),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, str(global_yaw), (90, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+                cv2.putText(frame, str(global_pitch), (90, 80),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
                 """test Kalman Filter"""
                 X = int((imgPoints[0][0] + imgPoints[2][0]) / 2)
@@ -708,7 +774,8 @@ def main(camera: CameraSource, target_color: TargetColor):
 
                     degree = 1  # if len(target_angle_history) == 2 else 2
 
-                    weights = np.linspace(float(max_history_length) - len(time_hist_array) + 1.0, float(max_history_length) + 1.0, len(time_hist_array))
+                    weights = np.linspace(float(max_history_length) - len(
+                        time_hist_array) + 1.0, float(max_history_length) + 1.0, len(time_hist_array))
                     predicted_x = poly_predict(time_hist_array, x_hist_array, degree,
                                                time_hist_array[-1] + prediction_future_time, weights=weights)
                     predicted_y = poly_predict(time_hist_array, y_hist_array, degree,
@@ -716,7 +783,13 @@ def main(camera: CameraSource, target_color: TargetColor):
                     predicted_z = poly_predict(time_hist_array, z_hist_array, degree,
                                                time_hist_array[-1] + prediction_future_time, weights=weights)
 
-                    predicted_yaw, predicted_pitch, _ = cartesian_to_spherical(np.array([predicted_x, predicted_y, predicted_z]))
+                    predicted_yaw, predicted_pitch, _ = cartesian_to_spherical(
+                        np.array([predicted_x, predicted_y, predicted_z]))
+
+                    """
+                    set threshold to the predicted Yaw & Pitch: currently No More Than -50 or 50 degree
+                    """
+
                 else:
                     predicted_yaw, predicted_pitch = global_yaw, global_pitch
 
@@ -724,17 +797,36 @@ def main(camera: CameraSource, target_color: TargetColor):
                                         int(active_cam_config['fy'] * math.tan(math.radians(-Pitch)) + active_cam_config['cy']))
                 predicted_point_coords = (int(active_cam_config['fx'] * math.tan(math.radians(predicted_yaw - imu_yaw)) + active_cam_config['cx']),
                                           int(active_cam_config['fy'] * math.tan(math.radians(-(predicted_pitch - imu_pitch))) + active_cam_config['cy']))
-                cv2.circle(frame, predicted_point_coords, 4, (0, 255, 0), -1)
-                # cv2.line(frame, current_point_coords, predicted_point_coords, (255, 255, 255), 2)
+                # cv2.circle(frame, predicted_point_coords, 4, (0, 255, 0), -1)
+                cv2.line(frame, current_point_coords,
+                         predicted_point_coords, (255, 255, 255), 2)
                 '''
                 all encoded number got plus 50 in decimal: input(Yaw or Pitch)= -50, output(in deci)= 0
                 return list = [hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, hex_sumAll]
                 '''
-                serial_lst = decimalToHexSerial(predicted_yaw, predicted_pitch)
 
+                relative_pred_yaw = predicted_yaw - imu_yaw
+                relative_pred_pitch = predicted_pitch - imu_pitch
+
+                if relative_pred_pitch > 50:
+                    relative_pred_pitch = 50
+                elif relative_pred_pitch < -50:
+                    relative_pred_pitch = -50
+                if relative_pred_yaw > 50:
+                    relative_pred_yaw = 50
+                elif relative_pred_yaw < -50:
+                    relative_pred_yaw = -50
+
+                serial_lst = decimalToHexSerial(
+                    relative_pred_yaw, relative_pred_pitch)
+                # Write imu data to log
+                # data_log_file.write(','.join([str(x) for x in [imu_yaw, imu_pitch, imu_roll, Yaw, Pitch, depth, *np.average(imgPoints, axis=0)]]) + '\n')
+                # data_log_file.flush()
+
+                # print(predicted_yaw, predicted_pitch)
                 if ser is not None:
-                    send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
-
+                    send_data(
+                        ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
                 # kf.predict()
                 # kf.correct(X, Y)
@@ -743,17 +835,14 @@ def main(camera: CameraSource, target_color: TargetColor):
                 # kf.correct(predicted[0],predicted[1])
                 # predicted = kf.predict()
 
-
-
-
-
                 # print(predicted[0],predicted[1])
                 #
                 #
                 # cv2.circle(frame, (int(predicted[0]), predicted[1]), 5, (255, 255, 0), 4)
             else:
 
-                logger.warning(f"Angle(s) exceed limits: Pitch: {Pitch}, Yaw: {Yaw}")
+                logger.warning(
+                    f"Angle(s) exceed limits: Pitch: {Pitch}, Yaw: {Yaw}")
                 # Calculate FPS
             # fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer1)
             #
@@ -790,13 +879,14 @@ def main(camera: CameraSource, target_color: TargetColor):
                         (0, 0, 255), 2)
 
             # send failure data(send 0 degree to make gimbal stop)
-            # send_data(ser, '32', '32', '32', '32', 'd1')
+            send_data(ser, '00', '00', '00', '00', '00')
+
 
             # real Yaw time line
             # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
-        cv2.imshow("original", frame)
-        cv2.waitKey(1)
+        # cv2.imshow("original", frame)
+        # cv2.waitKey(1)
 
         # count += 1
         #
@@ -820,8 +910,8 @@ def main(camera: CameraSource, target_color: TargetColor):
         # #init the tracker with target detected frame & target coordinace
         # success = tracker.init(track_init_frame, bbox)
 
-        #cv2.imshow("orhhhl", frame)
-        #cv2.waitKey(1)
+        # cv2.imshow("orhhhl", frame)
+        # cv2.waitKey(1)
 
         # track target for 10 frames
         #     while count < 1:
@@ -854,38 +944,42 @@ def main(camera: CameraSource, target_color: TargetColor):
         #     # send_data(ser, '32', '32','32','32','d1')
         #     print("can't find")
 
-
-
-
         cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
-        cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-        cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-        cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-        cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-        cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-
+        cv2.putText(frame, 'Depth: ', (20, 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+        cv2.putText(frame, 'Yaw: ', (20, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+        cv2.putText(frame, 'Pitch: ', (20, 80),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+        cv2.putText(frame, 'FPS: ', (20, 110),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+        cv2.putText(frame, str(fps), (90, 110),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
         # real Yaw time line
-        #cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
-
+        # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
+        #
         cv2.imshow("original", frame)
-
-            #cv2.imshow("track_init_fr、ame", track_init_frame)
+        # cv2.imshow("track_init_fr、ame", track_init_frame)
         cv2.waitKey(1)
 
-        #print(tvec, Yaw, Pitch)
+        # print(tvec, Yaw, Pitch)
 
-        #endtime = time.time()
-        #fps = 1 / (endtime - starttime)
+        endtime = time.time()
+        fps = 1 / (endtime - startTime)
+        #print(fps)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--target-color', required=True, type=str, choices=[val.value for val in TargetColor],
                         help='The armor board light color to detect')
-    parser.add_argument('--recording-source', type=pathlib.Path, help='Path to input video recordings')
-    parser.add_argument('--recording-dest', type=pathlib.Path, help='Path to record camera video to (MP4 format)')
-    parser.add_argument('--debug', action='store_true', help='Show intermediate results and debug output')
+    parser.add_argument('--recording-source', type=pathlib.Path,
+                        help='Path to input video recordings')
+    parser.add_argument('--recording-dest', type=pathlib.Path,
+                        help='Path to record camera video to (MP4 format)')
+    parser.add_argument('--debug', action='store_true',
+                        help='Show intermediate results and debug output')
     args = parser.parse_args()
 
     logger = logging.getLogger(__name__)
@@ -895,8 +989,8 @@ if __name__ == "__main__":
     args.target_color = TargetColor(args.target_color)
     num = 0  # for collecting dataset, pictures' names
 
-    camera = CameraSource(camera_params['Generic Webcam'], args.target_color.value,
+    camera = CameraSource(camera_params['HIK MV-CS016-10UC(A)_ipad'], args.target_color.value,
                           recording_source=args.recording_source, recording_dest=args.recording_dest)
     active_cam_config = camera.active_cam_config
-
+    print(active_cam_config)
     main(camera, args.target_color)

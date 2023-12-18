@@ -4,8 +4,8 @@
 import cv2
 import numpy as np
 
-from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
 
+from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
 g_bExit = False
 
 

@@ -13,7 +13,7 @@ camera_params = {
         'exposure': {'red': 45.0, 'blue': 20.0},
         'capture_res': (1280, 720),
         'depth_source': DepthSource.PNP,
-        'fov': (90, 65)
+        'fov': (90,65)
     },
     'Intel RealSense D435I': {
         'frame_rate': 30,
@@ -36,6 +36,58 @@ camera_params = {
         'k2': 0.0538700601952326,
         'p1': -0.000454149012521474,
         'p2': 0.00119677524381670,
+        'k3': 0.0
+    },
+
+    'HIK MV-CS016-10UC(B)-ipad': {
+        # all of HIK camera's params (and units) are adjustable in the MVS platform
+        'frame_rate': 249,
+        'exposure': {'red': 4000.0, 'blue': 5000.0},
+        'capture_res': (1280, 720),
+        'depth_source': DepthSource.PNP,
+        'fov': (48.33, 30),
+        'cx': 687.434,
+        'cy': 571.391,
+        'fx': 2414.2,
+        'fy': 2414.3,
+        'k1': -0.0307,
+        'k2': 0.1194,
+        'p1': 0.0,
+        'p2': 0.0,
+        'k3': 0.0
+    },
+    'HIK MV-CS016-10UC(A)_1': {
+        # all of HIK camera's params (and units) are adjustable in the MVS platform
+        'frame_rate': 249,
+        'exposure': {'red': 4000.0, 'blue': 5000.0},
+        'capture_res': (1280, 720),
+        'depth_source': DepthSource.PNP,
+        'fov': (48.33, 30),
+        'cx': 752.736,
+        'cy': 580.63,
+        'fx': 2360.1,
+        'fy': 2360.9,
+        'k1': -0.0262,
+        'k2': 0.1237,
+        'p1': 0.0,
+        'p2': 0.0,
+        'k3': 0.0
+    },
+    'HIK MV-CS016-10UC(A)_ipad': {
+        # all of HIK camera's params (and units) are adjustable in the MVS platform
+        'frame_rate': 249,
+        'exposure': {'red': 4000.0, 'blue': 5000.0},
+        'capture_res': (1280, 720),
+        'depth_source': DepthSource.PNP,
+        'fov': (48.33, 30),
+        'cx': 752.678,
+        'cy': 566.916,
+        'fx': 2428.8,
+        'fy': 2428.2,
+        'k1': 0.0007347,
+        'k2': 0.0733,
+        'p1': 0.0,
+        'p2': 0.0,
         'k3': 0.0
     }
 }
