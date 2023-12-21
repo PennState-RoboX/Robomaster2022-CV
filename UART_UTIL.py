@@ -4,9 +4,9 @@ import re
 
 
 def setUpSerial():
-    # select serial port 
-    # ser = serial.Serial('/dev/ttyTHS0', 115200, timeout=0.5) 
-    ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1.0)
+    ser = serial.Serial('/dev/ttyTHS0', 115200) # Direct Connection
+    # ser = serial.Serial('/dev/ttyUSB0', 115200) # sometime the USB ID change for no reason, switch this two line accordingly
+    # ser = serial.Serial('/dev/ttyUSB1', 115200)
     return ser
 
 
@@ -24,6 +24,9 @@ def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sum
     # packet = packet + b'\x04'
     # packet = packet + b'\x00'
     packet = 'a5'  # Header Byte
+    packet = bytes.fromhex(packet)
+    ser.write(packet)
+    return
     packet = packet + '5a'
     packet = packet + '08'  # Length of Packet
     packet = packet + hex_int_Pitch
@@ -37,49 +40,43 @@ def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sum
     packet = bytes.fromhex(packet)
     # print(packet)  # Packet Get Sent
     ser.write(packet)
+    print(f"hex_int_Pitch: {hex_int_Pitch}")
+    print(f"hex_deci_Pitch: {hex_deci_Pitch}")
+    print(f"hex_int_Yaw: {hex_int_Yaw}")
+    print(f"hex_deci_Yaw: {hex_deci_Yaw}")
+    print(sumAll)
+
+
+
 
 def get_imu(ser):
-
-    """
-    This function reads the serial port and returns the IMU data
-    :param ser: The serial port object
-    :return: A list of IMU data
-
-    STM32 sends IMU data in the following format:
-    A5%f,%f,%f
-    
-    Check embedded system code for more details
-    """
-
-    ser.flushInput()
-    buffer_size = ser.in_waiting
+    # buffer_size = ser.in_waiting # sometime the in_waiting returns 0, but there's still data coming in
     imu_value = [None,None,None]
     counter = 0
 
     while True:
-        raw_data = ser.read()
-
-        data = raw_data.decode('latin-1').strip()
+        raw_data = ser.read(4095)
+        data = raw_data.decode('utf-8','replace')
         counter += len(raw_data)  # Count bytes
 
-        try:
-            if data.startswith('Y:'):
-                imu_value[0] = float(data.split(' ')[0].strip('Y:'))
-                imu_value[1] = float(data.split(' ')[1].strip('P:'))
-                imu_value[2] = float(data.split(' ')[2].strip('R:'))
-                print(imu_value)
-                return imu_value
-        except:
-            continue  # If we can't convert the value to a float, skip this line
 
-        # if all(value is not None for value in imu_value):
-        #     # If we have a complete set of IMU data and we have processed all data in the buffer
-        #     # then we can break the loop
-        #     if counter >= buffer_size:
-        #         break
 
-    # # return imu data, [0]:yaw,[1]:pitch,[2]:roll
-    # return imu_value
+        if 'A5' in data:
+            try:
+                start = data.index('A5') + 2  # Skip the 'A5'
+                end = data.index('A5', start)  # Find the next 'A5' or end of the string
+                imu_readings = data[start:end].split(',')
+
+                # Convert the first three elements to floats and return them
+                if len(imu_readings) >= 3:
+                    imu_value = [float(x) for x in imu_readings[:3]]
+                    return imu_value
+            except Exception as e:
+                print(f"Error processing IMU data: {e}")
+                continue
+                # Handle the exception or continue the loop
+
+
 
 
 
@@ -93,12 +90,13 @@ if __name__ == '__main__':
 
 
 # Below are example of how to use this utility
-
 '''
 ser = serial.Serial('/dev/ttyTHS2', 115200)
 
 while 1==1 :
+	
 	#send_data(ser,b'\x0b',b'\x09',b'\x06')
 	send_data(ser,'01','09','06')
 	time.sleep(5)
+
 '''
