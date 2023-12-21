@@ -21,7 +21,7 @@ active_cam_config = None
 frame_aligner = None
 
 
-def nothing(x):
+def nope(x):
     pass
 
 
@@ -76,7 +76,7 @@ def createTrackbarsForParams(window_name: str, params: CVParams):
                 scaling = 0.01
 
             cv2.createTrackbar(key, window_name, int(
-                slider_min / scaling), int(slider_max / scaling), nothing)
+                slider_min / scaling), int(slider_max / scaling), nope)
             cv2.setTrackbarPos(key, window_name, int(value / scaling))
 
 
@@ -96,30 +96,30 @@ def updateParamsFromTrackbars(window_name: str, params: CVParams):
 #     cv2.namedWindow("morphology_tuner")
 #     cv2.resizeWindow("morphology_tuner", 600, 180)
 #     createTrackbarsForParams("morphology_tuner", )
-#     cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
-#     cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
-#     cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
-#     cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
+#     cv2.createTrackbar("open", "morphology_tuner", 1, 30, nope)
+#     cv2.createTrackbar("close", "morphology_tuner", 15, 30, nope)
+#     cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nope)
+#     cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nope)
 
-def open_binary(binary, x, y):
+def perform_morphological_opening(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
     return dst
 
 
-def close_binary(binary, x, y):
+def perform_morphological_closing(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
     return dst
 
 
-def erode_binary(binary, x, y):
+def perform_erosion(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.erode(binary, kernel)
     return dst
 
 
-def dilate_binary(binary, x, y):
+def perform_dilation(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.dilate(binary, kernel)
     return dst
@@ -172,11 +172,11 @@ def read_morphology(cap, config: CVParams):
     #     close = cv2.getTrackbarPos('close', 'morphology_tuner')
     #     erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
     #     dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
-    # dst_open = open_binary(mask, open, open) currently not needed
-    dst_close = close_binary(
+    # dst_open = perform_morphological_opening(mask, open, open) currently not needed
+    dst_close = perform_morphological_closing(
         mask_processed, config.close_size, config.close_size)
-    dst_erode = erode_binary(dst_close, config.erode_size, config.erode_size)
-    dst_dilate = dilate_binary(
+    dst_erode = perform_erosion(dst_close, config.erode_size, config.erode_size)
+    dst_dilate = perform_dilation(
         dst_erode, config.dilate_size, config.dilate_size)
 
     if debug:
