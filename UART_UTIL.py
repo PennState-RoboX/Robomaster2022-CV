@@ -4,7 +4,8 @@ import re
 
 
 def setUpSerial():
-    # ser = serial.Serial('/dev/ttyTHS0', 115200, timeout=0.5)
+    # select serial port 
+    # ser = serial.Serial('/dev/ttyTHS0', 115200, timeout=0.5) 
     ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1.0)
     return ser
 
@@ -38,6 +39,17 @@ def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sum
     ser.write(packet)
 
 def get_imu(ser):
+
+    """
+    This function reads the serial port and returns the IMU data
+    :param ser: The serial port object
+    :return: A list of IMU data
+
+    STM32 sends IMU data in the following format:
+    A5%f,%f,%f
+    
+    Check embedded system code for more details
+    """
 
     ser.flushInput()
     buffer_size = ser.in_waiting
@@ -81,13 +93,12 @@ if __name__ == '__main__':
 
 
 # Below are example of how to use this utility
+
 '''
 ser = serial.Serial('/dev/ttyTHS2', 115200)
 
 while 1==1 :
-	
 	#send_data(ser,b'\x0b',b'\x09',b'\x06')
 	send_data(ser,'01','09','06')
 	time.sleep(5)
-
 '''
