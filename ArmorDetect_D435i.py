@@ -21,7 +21,7 @@ active_cam_config = None
 frame_aligner = None
 
 
-def nope(x):
+def nothing(x):
     pass
 
 
@@ -76,7 +76,7 @@ def createTrackbarsForParams(window_name: str, params: CVParams):
                 scaling = 0.01
 
             cv2.createTrackbar(key, window_name, int(
-                slider_min / scaling), int(slider_max / scaling), nope)
+                slider_min / scaling), int(slider_max / scaling), nothing)
             cv2.setTrackbarPos(key, window_name, int(value / scaling))
 
 
@@ -96,30 +96,30 @@ def updateParamsFromTrackbars(window_name: str, params: CVParams):
 #     cv2.namedWindow("morphology_tuner")
 #     cv2.resizeWindow("morphology_tuner", 600, 180)
 #     createTrackbarsForParams("morphology_tuner", )
-#     cv2.createTrackbar("open", "morphology_tuner", 1, 30, nope)
-#     cv2.createTrackbar("close", "morphology_tuner", 15, 30, nope)
-#     cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nope)
-#     cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nope)
+#     cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
+#     cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
+#     cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
+#     cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
 
-def perform_morphological_opening(binary, x, y):
+def open_binary(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
     return dst
 
 
-def perform_morphological_closing(binary, x, y):
+def close_binary(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
     return dst
 
 
-def perform_erosion(binary, x, y):
+def erode_binary(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.erode(binary, kernel)
     return dst
 
 
-def perform_dilation(binary, x, y):
+def dilate_binary(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.dilate(binary, kernel)
     return dst
@@ -172,11 +172,11 @@ def read_morphology(cap, config: CVParams):
     #     close = cv2.getTrackbarPos('close', 'morphology_tuner')
     #     erode = cv2.getTrackbarPos('erode', 'morphology_tuner')
     #     dilate = cv2.getTrackbarPos('dilate', 'morphology_tuner')
-    # dst_open = perform_morphological_opening(mask, open, open) currently not needed
-    dst_close = perform_morphological_closing(
+    # dst_open = open_binary(mask, open, open) currently not needed
+    dst_close = close_binary(
         mask_processed, config.close_size, config.close_size)
-    dst_erode = perform_erosion(dst_close, config.erode_size, config.erode_size)
-    dst_dilate = perform_dilation(
+    dst_erode = erode_binary(dst_close, config.erode_size, config.erode_size)
+    dst_dilate = dilate_binary(
         dst_erode, config.dilate_size, config.dilate_size)
 
     if debug:
@@ -290,11 +290,20 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
     if length > 0:
         # collect info for every contour's rectangle
         for i, contour in enumerate(contours):
+            # data_dict = dict()
+            # print("countour", contour)
             area = cv2.contourArea(contour)
+
             # area smaller than certain value will not be considered as armor board
             if area < 5:
                 continue
+
             rect = cv2.minAreaRect(contour)
+            # rx, ry = rect[0]  # min Rectangle's center's (x,y)
+            # rw = rect[1][0]  # rect's width
+            # rh = rect[1][1]  # rect's height
+            # z = rect[2]  # rect's Rotation angle, θ
+
             # coordinates of the four vertices of the rectangle
             coor = cv2.boxPoints(rect).astype(np.int)
 
@@ -390,6 +399,14 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
 
                     # Convert to grayscale image
                     gray_img = cv2.cvtColor(trans_img, cv2.COLOR_BGR2GRAY)
+                    # cv2.imshow("dila_img", gray_img)
+                    # Convert to binary image
+                    # _, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
+                    # Erosion and dilation to denoise
+                    # Define the kernel (5 pixel * 5 pixel square)
+                    # kernel = np.ones((2, 2), np.uint8)
+                    # erode_img = cv2.erode(binary_img, kernel, iterations=1)
+                    # dila_img = cv2.dilate(erode_img, kernel, iterations=1)
 
                     cv2.imshow("dila_img", gray_img)
 
@@ -569,15 +586,14 @@ def main(camera: CameraSource, target_color: TargetColor):
         cv2.namedWindow("CV Parameters")
         createTrackbarsForParams("CV Parameters", cv_config)
         cv2.resizeWindow("CV Parameters", 800, 180)
-
     # test Kalman Filter Opencv
     kf = KalmanFilter()
 
     ser = None
-    try:
-        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=0.5)
-    except serial.SerialException:
-        logger.warning('Failed to open serial port')
+    # try:
+    ser = serial.Serial('/dev/ttyUSB0', 115200) # Direct Connection
+    # except serial.SerialException:
+    #     logger.warning('Failed to open serial port')
 
     fps = 0
     target_coor = []
@@ -659,7 +675,13 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             bbox = clipRect(bbox, (color_image.shape[1], color_image.shape[0]))
 
-           
+            # init the tracker with target detected frame & target coordinace
+
+            # if bbox[2] >= 10 and bbox[3] >= 10:
+            #     tracker = cv2.TrackerKCF_create()
+            #     tracker.init(color_image, tuple(int(x) for x in bbox))
+            # else:
+            #     tracker = None
         else:
             # if tracking_frames == 0:
             #     sensor.set_option(rs.option.exposure, 88.000)
@@ -698,6 +720,7 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             # imu_yaw, imu_pitch, imu_roll = 20,20,20
             # Comment this line when imu is not connected
+            setUpSerial()
             imu_yaw, imu_pitch, imu_roll = get_imu(ser)
             imu_yaw *= -1.2
             imu_pitch *= -1.2
@@ -804,18 +827,57 @@ def main(camera: CameraSource, target_color: TargetColor):
                 if ser is not None:
                     send_data(
                         ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
+
+                # kf.predict()
+                # kf.correct(X, Y)
+                # predicted = kf.predict(1)
+                # predicted = kf.predict()
+                # kf.correct(predicted[0],predicted[1])
+                # predicted = kf.predict()
+
+                # print(predicted[0],predicted[1])
+                #
+                #
+                # cv2.circle(frame, (int(predicted[0]), predicted[1]), 5, (255, 255, 0), 4)
             else:
 
                 logger.warning(
                     f"Angle(s) exceed limits: Pitch: {Pitch}, Yaw: {Yaw}")
                 # Calculate FPS
-          
+            # fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer1)
+            #
+            # # Tracking success
+            # p1 = (int(bbox[0]), int(bbox[1]))
+            # p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+            # cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+            #
+            # # Display tracker type on frame
+            # cv2.putText(frame, " Tracker", (600, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2);
+            #
+            # # Display FPS on frame
+            # cv2.putText(frame, "FPS : " + str(int(fps)), (600, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
+            #             (50, 170, 50), 2);
+            #
+            # cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
+            # cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            # cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            # cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            # cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            #
+            # depth = str(tvec[2][0]) + 'mm'
+            # cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            # cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            # cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            # cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
+            #
+            # serial_lst = decimalToHexSerial(float(Yaw), float(Pitch))
+            # send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
         else:
             # Tracking failure
             cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
                         (0, 0, 255), 2)
-
+            ser=setUpSerial()
             # send failure data(send 0 degree to make gimbal stop)
             send_data(ser, '00', '00', '00', '00', '00')
 
@@ -823,6 +885,64 @@ def main(camera: CameraSource, target_color: TargetColor):
             # real Yaw time line
             # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
+        # cv2.imshow("original", frame)
+        # cv2.waitKey(1)
+
+        # count += 1
+        #
+        #
+        # else:
+        # planB = True  # Do tracker to look for lost last target
+
+        # count = 0
+
+        # """Start Tracking"""
+        # tracker = cv2.legacy.TrackerCSRT_create()
+        #
+        # target_coor_tl_x = int(target_coor[1][0])
+        # target_coor_tl_y = int(target_coor[1][1])
+        # target_coor_width = abs(int(target_coor[2][0]) - int(target_coor[1][0]))
+        # target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
+        #
+        # # bbox format:  (init_x,init_y,w,h)
+        # bbox = (target_coor_tl_x-target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10, target_coor_height)
+        #
+        # #init the tracker with target detected frame & target coordinace
+        # success = tracker.init(track_init_frame, bbox)
+
+        # cv2.imshow("orhhhl", frame)
+        # cv2.waitKey(1)
+
+        # track target for 10 frames
+        #     while count < 1:
+        #
+        #         # Wait for a coherent pair of frames: depth and color
+        #         frames = pipeline.wait_for_frames()
+        #         # depth_frame = frames.get_depth_frame()
+        #         color_frame = frames.get_color_frame()
+        #         if not color_frame:
+        #             continue
+        #         # Convert images to numpy arrays
+        #         # depth_image = np.asanyarray(depth_frame.get_data())
+        #         frame = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
+        #
+        #
+        #
+        #         # Start timer
+        #         timer = cv2.getTickCount()
+        #
+        #
+        #
+        #
+        #
+        #
+        #         #print(Yaw,Pitch)
+        #
+        #     planB = False
+        #
+        # else: #can't find a target
+        #     # send_data(ser, '32', '32','32','32','d1')
+        #     print("can't find")
 
         cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
         cv2.putText(frame, 'Depth: ', (20, 20),
@@ -862,7 +982,6 @@ if __name__ == "__main__":
                         help='Show intermediate results and debug output')
     args = parser.parse_args()
 
-    
     logger = logging.getLogger(__name__)
     debug: bool = args.debug
     logger.setLevel('DEBUG' if debug else 'INFO')
