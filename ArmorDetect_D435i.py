@@ -709,7 +709,6 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             # imu_yaw, imu_pitch, imu_roll = 20,20,20
             # Comment this line when imu is not connected
-            setUpSerial()
             imu_yaw, imu_pitch, imu_roll = get_imu(ser)
             imu_yaw *= -1.2
             imu_pitch *= -1.2
@@ -822,9 +821,8 @@ def main(camera: CameraSource, target_color: TargetColor):
             # Tracking failure
             cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
                         (0, 0, 255), 2)
-            ser = setUpSerial()
-            # send failure data(send 0 degree to make gimbal stop)
-            send_data(ser, '00', '00', '00', '00', '00')
+            send_data(ser, '00', '00', '00', '00', '00')   # send failure data(send 0 degree to make gimbal stop)
+
 
             # real Yaw time line
             # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
@@ -881,5 +879,4 @@ if __name__ == "__main__":
                           recording_source=args.recording_source, recording_dest=args.recording_dest)
 
     active_cam_config = camera.active_cam_config
-    print(active_cam_config)
     main(camera, args.target_color)

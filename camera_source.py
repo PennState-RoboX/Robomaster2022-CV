@@ -2,17 +2,12 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, Tuple, Optional
-import cv2
-import numpy as np
 from camera_params import camera_params, DepthSource
-# from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
 from hik_driver import *
-
 
 logger = logging.getLogger(__name__)
 
 RS_DEPTH_CAPTURE_RES = (640, 480)
-
 
 # Unified image acquisition class for different types of cameras
 class CameraSource:
@@ -32,10 +27,7 @@ class CameraSource:
             self.active_cam_config = default_config
 
             try:
-
                 import pyrealsense2 as rs
-
-
                 # Configure depth and color streams
                 pipeline = rs.pipeline()
                 config = rs.config()
@@ -106,7 +98,8 @@ class CameraSource:
                             self.active_cam_config['capture_res'][1])
                     cap.set(cv2.CAP_PROP_FPS, self.active_cam_config['frame_rate'])
                     self._cv_color_cap = cap
-                else:  # init Hik camera
+                # if built-in camera not available, open hik
+                else:
                     self.hik_frame_init = hik_init()
 
 
