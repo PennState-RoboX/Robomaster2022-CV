@@ -3,12 +3,21 @@ import time
 import re
 
 
-def setUpSerial():
-    # ser = serial.Serial('/dev/ttyTHS0', 115200)  # Direct Connection
-    ser = serial.Serial('/dev/ttyUSB0',
-                        115200)  # sometime the USB ID change for no reason, switch this two line accordingly
-    # ser = serial.Serial('/dev/ttyUSB1', 115200)
-    return ser
+def setUpSerial(baud_rate):
+    ports = ['/dev/ttyTHS0', '/dev/ttyUSB0', '/dev/ttyUSB1']
+    for port in ports:
+        try:
+            # try to open the port
+            ser = serial.Serial(port, baud_rate, timeout=1)
+            print(f"Connected to {port} at {baud_rate} baud")
+            return ser
+        except serial.SerialException:
+            # if not successful, try the next one
+            print(f"Failed to connect to {port}")
+            continue
+    # print error message if all ports fail
+    print("No available serial ports found")
+    return None
 
 
 # Angles are in Byte Format
@@ -72,7 +81,7 @@ def get_imu(ser):
 
 # # Example usage
 if __name__ == '__main__':
-    ser = setUpSerial()
+    ser = setUpSerial(115200)
     while True:
         imu = get_imu(ser)
         print(imu)

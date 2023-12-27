@@ -92,15 +92,6 @@ def updateParamsFromTrackbars(window_name: str, params: CVParams):
                 key, window_name) * scaling)
 
 
-# def createTrackbars():  # creat trackbar to adjust the color threshold.
-#     cv2.namedWindow("morphology_tuner")
-#     cv2.resizeWindow("morphology_tuner", 600, 180)
-#     createTrackbarsForParams("morphology_tuner", )
-#     cv2.createTrackbar("open", "morphology_tuner", 1, 30, nothing)
-#     cv2.createTrackbar("close", "morphology_tuner", 15, 30, nothing)
-#     cv2.createTrackbar("erode", "morphology_tuner", 2, 30, nothing)
-#     cv2.createTrackbar("dilate", "morphology_tuner", 3, 30, nothing)
-
 def open_binary(binary, x, y):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (x, y))
     dst = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
@@ -578,46 +569,44 @@ def decimalToHexSerial(Yaw, Pitch):
 def main(camera: CameraSource, target_color: TargetColor):
     """
     Important commit updates: umature pred-imu; 50 deg limit; HSV red adj; get_imu; MVS arch rebuild ---- Shiao
-
     """
     cv_config = CVParams(target_color)
 
+    # Create a window for CV parameters if debug mode is active
     if debug:
         cv2.namedWindow("CV Parameters")
         createTrackbarsForParams("CV Parameters", cv_config)
         cv2.resizeWindow("CV Parameters", 800, 180)
-    # test Kalman Filter Opencv
-    kf = KalmanFilter()
 
-    ser = None
-    # try:
-    ser = serial.Serial('/dev/ttyUSB0', 115200) # Direct Connection
-    # except serial.SerialException:
-    #     logger.warning('Failed to open serial port')
+    '''Initialize variables for tracking and prediction'''
 
     fps = 0
     target_coor = []
-    lock = False  # whether found the best target or not
+    lock = False                    # Flag to indicate if the best target is found
     track_init_frame = None
     last_target_x = None
     last_target_y = None
     success = False
     tracker = None
     tracking_frames = 0
-    max_tracking_frames = 15
-    max_history_length = 8  # Maximum number of samples to use for prediction
-    # How far into the future (in seconds) to predict the target's motion
-    prediction_future_time = 0.2
-    # Maximum time allowed (in seconds) between history frames (otherwise history will restart)
+    max_tracking_frames = 15        # Maximum number of frames to track
+
+    max_history_length = 8          # Maximum number of samples for prediction
+    prediction_future_time = 0.2    # Time in seconds to predict the target's motion into the future
+   
+
+    '''
+    Maximum time in seconds between history frames
+    Should be long enough for a dropped frame or two,
+    but not too long to group unrelated detections
+    '''
     max_history_frame_delta = 0.15
-    # This should be long enough to allow a dropped frame or two, but not long enough to
-    # allow unrelated detections to be grouped together.
     target_angle_history = []
 
-    data_log_file = open('data_log_HIK_A_neg_ipad_target_move.csv', 'w')
+    # Open serial port with specified baud rate
+    baud_rate = 115200
+    ser = setUpSerial(baud_rate)
 
-    # counter for kalman
-    countKalman = 1
     while True:
         "to calculate fps"
         startTime = time.time()
@@ -765,8 +754,8 @@ def main(camera: CameraSource, target_color: TargetColor):
 
                 if len(target_angle_history) >= 2:
                     time_hist_array, x_hist_array, y_hist_array, z_hist_array =\
-                        np.array([item[0] for item in target_angle_history]),\
-                        np.array([item[1] for item in target_angle_history]),\
+                        np.array([item[0] for item in target_angle_history]), \
+                        np.array([item[1] for item in target_angle_history]), \
                         np.array([item[2] for item in target_angle_history]), \
                         np.array([item[3] for item in target_angle_history])
 
@@ -819,130 +808,26 @@ def main(camera: CameraSource, target_color: TargetColor):
 
                 serial_lst = decimalToHexSerial(
                     relative_pred_yaw, relative_pred_pitch)
-                # Write imu data to log
-                # data_log_file.write(','.join([str(x) for x in [imu_yaw, imu_pitch, imu_roll, Yaw, Pitch, depth, *np.average(imgPoints, axis=0)]]) + '\n')
-                # data_log_file.flush()
 
-                # print(predicted_yaw, predicted_pitch)
                 if ser is not None:
                     send_data(
                         ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
-                # kf.predict()
-                # kf.correct(X, Y)
-                # predicted = kf.predict(1)
-                # predicted = kf.predict()
-                # kf.correct(predicted[0],predicted[1])
-                # predicted = kf.predict()
-
-                # print(predicted[0],predicted[1])
-                #
-                #
-                # cv2.circle(frame, (int(predicted[0]), predicted[1]), 5, (255, 255, 0), 4)
             else:
 
                 logger.warning(
                     f"Angle(s) exceed limits: Pitch: {Pitch}, Yaw: {Yaw}")
-                # Calculate FPS
-            # fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer1)
-            #
-            # # Tracking success
-            # p1 = (int(bbox[0]), int(bbox[1]))
-            # p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-            # cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
-            #
-            # # Display tracker type on frame
-            # cv2.putText(frame, " Tracker", (600, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2);
-            #
-            # # Display FPS on frame
-            # cv2.putText(frame, "FPS : " + str(int(fps)), (600, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
-            #             (50, 170, 50), 2);
-            #
-            # cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
-            # cv2.putText(frame, 'Depth: ', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            # cv2.putText(frame, 'Yaw: ', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            # cv2.putText(frame, 'Pitch: ', (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            # cv2.putText(frame, 'FPS: ', (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            #
-            # depth = str(tvec[2][0]) + 'mm'
-            # cv2.putText(frame, depth, (90, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            # cv2.putText(frame, str(Yaw), (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            # cv2.putText(frame, str(Pitch), (90, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            # cv2.putText(frame, str(fps), (90, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-            #
-            # serial_lst = decimalToHexSerial(float(Yaw), float(Pitch))
-            # send_data(ser, serial_lst[0], serial_lst[1], serial_lst[2], serial_lst[3], serial_lst[4])
 
         else:
             # Tracking failure
             cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
                         (0, 0, 255), 2)
-            ser=setUpSerial()
+            ser = setUpSerial()
             # send failure data(send 0 degree to make gimbal stop)
             send_data(ser, '00', '00', '00', '00', '00')
 
-
             # real Yaw time line
             # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
-
-        # cv2.imshow("original", frame)
-        # cv2.waitKey(1)
-
-        # count += 1
-        #
-        #
-        # else:
-        # planB = True  # Do tracker to look for lost last target
-
-        # count = 0
-
-        # """Start Tracking"""
-        # tracker = cv2.legacy.TrackerCSRT_create()
-        #
-        # target_coor_tl_x = int(target_coor[1][0])
-        # target_coor_tl_y = int(target_coor[1][1])
-        # target_coor_width = abs(int(target_coor[2][0]) - int(target_coor[1][0]))
-        # target_coor_height = abs(int(target_coor[1][1]) - int(target_coor[0][1]))
-        #
-        # # bbox format:  (init_x,init_y,w,h)
-        # bbox = (target_coor_tl_x-target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10, target_coor_height)
-        #
-        # #init the tracker with target detected frame & target coordinace
-        # success = tracker.init(track_init_frame, bbox)
-
-        # cv2.imshow("orhhhl", frame)
-        # cv2.waitKey(1)
-
-        # track target for 10 frames
-        #     while count < 1:
-        #
-        #         # Wait for a coherent pair of frames: depth and color
-        #         frames = pipeline.wait_for_frames()
-        #         # depth_frame = frames.get_depth_frame()
-        #         color_frame = frames.get_color_frame()
-        #         if not color_frame:
-        #             continue
-        #         # Convert images to numpy arrays
-        #         # depth_image = np.asanyarray(depth_frame.get_data())
-        #         frame = np.asanyarray(color_frame.get_data())  # obtain the image to detect armors
-        #
-        #
-        #
-        #         # Start timer
-        #         timer = cv2.getTickCount()
-        #
-        #
-        #
-        #
-        #
-        #
-        #         #print(Yaw,Pitch)
-        #
-        #     planB = False
-        #
-        # else: #can't find a target
-        #     # send_data(ser, '32', '32','32','32','d1')
-        #     print("can't find")
 
         cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
         cv2.putText(frame, 'Depth: ', (20, 20),
@@ -960,17 +845,18 @@ def main(camera: CameraSource, target_color: TargetColor):
         # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
         #
         cv2.imshow("original", frame)
-        # cv2.imshow("track_init_fr、ame", track_init_frame)
+        # cv2.imshow("track_init_frame", track_init_frame)
         cv2.waitKey(1)
 
         # print(tvec, Yaw, Pitch)
 
         endtime = time.time()
         fps = 1 / (endtime - startTime)
-        #print(fps)
+        # print(fps)
 
 
 if __name__ == "__main__":
+    # set up argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--target-color', required=True, type=str, choices=[val.value for val in TargetColor],
                         help='The armor board light color to detect')
@@ -982,6 +868,7 @@ if __name__ == "__main__":
                         help='Show intermediate results and debug output')
     args = parser.parse_args()
 
+    # set up logger
     logger = logging.getLogger(__name__)
     debug: bool = args.debug
     logger.setLevel('DEBUG' if debug else 'INFO')
@@ -989,8 +876,10 @@ if __name__ == "__main__":
     args.target_color = TargetColor(args.target_color)
     num = 0  # for collecting dataset, pictures' names
 
+    # choose camera params
     camera = CameraSource(camera_params['HIK MV-CS016-10UC(A)_ipad'], args.target_color.value,
                           recording_source=args.recording_source, recording_dest=args.recording_dest)
+
     active_cam_config = camera.active_cam_config
     print(active_cam_config)
     main(camera, args.target_color)
