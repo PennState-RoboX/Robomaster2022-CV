@@ -14,6 +14,7 @@ class CameraSource:
     def __init__(self, default_config: Dict, target_color: str, cv_device_index: int = 0,
                  recording_source: Optional[Path] = None, recording_dest: Optional[Path] = None):
         assert recording_source is None or recording_dest is None
+        self.recording_source=recording_source
         self._rs_pipeline = None
         self._rs_frame_aligner = None
         self._cv_color_cap = None
@@ -22,6 +23,7 @@ class CameraSource:
         self.color_frame_writer = None
         self.depth_frame_writer = None
         self.active_cam_config = None
+        self.hik_frame_init=None
 
         if recording_source is None:
             self.active_cam_config = default_config
@@ -109,12 +111,12 @@ class CameraSource:
             with open(cam_config_path, 'r', encoding='utf8') as cam_config_file:
                 self.active_cam_config = json.load(cam_config_file)
 
-            color_frame_path = recording_source.with_name(
-                recording_source.name + '.color.mp4')
-            depth_frame_path = recording_source.with_name(
-                recording_source.name + '.depth.mp4')
-            self._cv_color_cap = cv2.VideoCapture(str(color_frame_path))
-            self._cv_depth_cap = cv2.VideoCapture(str(depth_frame_path))
+            # color_frame_path = recording_source.with_name(
+            #     recording_source.name + '.color.mp4')
+            # depth_frame_path = recording_source.with_name(
+            #     recording_source.name + '.depth.mp4')
+            self._cv_color_cap = cv2.VideoCapture(str(recording_source))
+            # self._cv_depth_cap = cv2.VideoCapture(str(depth_frame_path))
 
         self.color_frame_writer = self.depth_frame_writer = None
         if recording_dest is not None:
@@ -139,7 +141,20 @@ class CameraSource:
                                                           self.active_cam_config['capture_res'])
 
     def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        if self._rs_pipeline is not None:
+        if self.recording_source is not None:
+            # Read from recording source
+            ret, color_image = self._cv_color_cap.read()
+            if not ret:
+                color_image = None
+
+            if self._cv_depth_cap is not None:
+                ret, depth_image = self._cv_depth_cap.read()
+                if not ret:
+                    depth_image = None
+            else:
+                depth_image = None
+
+        elif self._rs_pipeline is not None:
             frames = self._rs_pipeline.wait_for_frames()
 
             if self._rs_frame_aligner is not None:

@@ -21,6 +21,7 @@ active_cam_config = None
 frame_aligner = None
 
 
+
 def nothing(x):
     pass
 
@@ -78,6 +79,7 @@ def createTrackbarsForParams(window_name: str, params: CVParams):
             cv2.createTrackbar(key, window_name, int(
                 slider_min / scaling), int(slider_max / scaling), nothing)
             cv2.setTrackbarPos(key, window_name, int(value / scaling))
+
 
 
 def updateParamsFromTrackbars(window_name: str, params: CVParams):
@@ -605,8 +607,7 @@ def main(camera: CameraSource, target_color: TargetColor):
 
     # Open serial port with specified baud rate
     baud_rate = 115200
-    ser = setUpSerial(baud_rate)
-
+    ser=setUpSerial()
     while True:
         "to calculate fps"
         startTime = time.time()
