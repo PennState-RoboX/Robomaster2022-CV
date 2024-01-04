@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 import serial
-from UART_UTIL import setUpSerial, send_data, get_imu
+from UART_UTIL import send_data, get_imu
 from camera_source import CameraSource
 from kinematic_prediction import poly_predict
 from solve_Angle import solve_Angle455
@@ -196,47 +196,60 @@ def cartesian_to_spherical(coords: np.ndarray):
 
 
 def get_3d_target_location(imgPoints, frame, depth_frame):
+    # Retrieve the camera's data & distortion coefficients from config
     camera_matrix, distort_coeffs = np.array(active_cam_config['camera_matrix'], dtype=np.float64), \
         np.array(active_cam_config['distort_coeffs'], dtype=np.float64)
+
+    # Undistort the given image points 
     imgPoints = cv2.undistortPoints(
         imgPoints, camera_matrix, distort_coeffs, P=camera_matrix)[:, 0, :]
+
+    # Calculate the average (center) point of the image points
     center_point = np.average(imgPoints, axis=0)
+
+    # Calculate the offset of the center point from the camera's optical center
     center_offset = center_point - \
         np.array([active_cam_config['cx'], active_cam_config['cy']])
     center_offset[1] = -center_offset[1]
+
+    # Convert the offset to angular measurements (yaw and pitch) in degrees
     angles = np.rad2deg(np.arctan2(center_offset, np.array(
         [active_cam_config['fx'], active_cam_config['fy']])))
 
+    # Calculate depth based on the configured depth source
     if active_cam_config['depth_source'] == DepthSource.PNP:
-        # small armor board's width(include light bar's width)
-        width_size_half = 70
-        height_size_half = 62.5  # small armor board's height
-        '''Here's D455 RGB's features with 1280*480'''
+        # Define the real-world dimensions of the object for Perspective-n-Point (PnP) depth calculation
+        width_size_half = 70  # half width of the object
+        height_size_half = 62.5  # half height of the object
 
+        # Object points in real world coordinates
         objPoints = np.array([[-width_size_half, -height_size_half, 0],
                               [width_size_half, -height_size_half, 0],
                               [width_size_half, height_size_half, 0],
                               [-width_size_half, height_size_half, 0]], dtype=np.float64)
 
-        retval, rvec, tvec = cv2.solvePnP(objPoints, imgPoints, camera_matrix,
-                                          distort_coeffs)
+        # Use solvePnP to find the object's pose and calculate the norm of the translation vector for depth
+        retval, rvec, tvec = cv2.solvePnP(objPoints, imgPoints, camera_matrix, distort_coeffs)
         meanDVal = np.linalg.norm(tvec[:, 0])
     elif active_cam_config['depth_source'] == DepthSource.STEREO:
+        # Ensure the depth frame is available for stereo depth calculation
         assert depth_frame is not None
+
+        # Create a mask from the image points and scale it to match the depth frame size
         panel_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-        cv2.drawContours(panel_mask, [imgPoints.astype(
-            np.int64)], -1, 1, thickness=cv2.FILLED)
-        panel_mask_scaled = cv2.resize(
-            panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
+        cv2.drawContours(panel_mask, [imgPoints.astype(np.int64)], -1, 1, thickness=cv2.FILLED)
+        panel_mask_scaled = cv2.resize(panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
+
+        # Calculate the mean depth value within the masked area
         meanDVal, _ = cv2.meanStdDev(depth_frame, mask=panel_mask_scaled)
     else:
+        # Throw an error if an invalid depth source is configured
         raise RuntimeError('Invalid depth source in camera config')
 
-    target_Dict = {"depth": meanDVal,
-                   "Yaw": angles[0], "Pitch": angles[1],
-                   "imgPoints": imgPoints}
-
+    # Store and return the calculated depth, yaw, pitch, and image points
+    target_Dict = {"depth": meanDVal, "Yaw": angles[0], "Pitch": angles[1], "imgPoints": imgPoints}
     return target_Dict
+
 
 
 @dataclass
@@ -273,30 +286,22 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
     global num
     contours, heriachy = cv2.findContours(
         binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    length = len(contours)
     first_data = []  # include all potential light bar's contourArea information dict by dict
     second_data = []
     # all potential target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
     potential_Targets = []
     # target_Dict = dict() # per target's [depth,yaw,pitch,imgPoints(np.array([[bl], [tl], [tr],[br]]))]
 
-    if length > 0:
+    if len(contours) > 0:
         # collect info for every contour's rectangle
         for i, contour in enumerate(contours):
-            # data_dict = dict()
-            # print("countour", contour)
             area = cv2.contourArea(contour)
 
-            # area smaller than certain value will not be considered as armor board
+            # area < 5 will not be considered as armor board, unit is pixel^2
             if area < 5:
                 continue
 
             rect = cv2.minAreaRect(contour)
-            # rx, ry = rect[0]  # min Rectangle's center's (x,y)
-            # rw = rect[1][0]  # rect's width
-            # rh = rect[1][1]  # rect's height
-            # z = rect[2]  # rect's Rotation angle, θ
-
             # coordinates of the four vertices of the rectangle
             coor = cv2.boxPoints(rect).astype(np.int)
 
@@ -392,32 +397,15 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
 
                     # Convert to grayscale image
                     gray_img = cv2.cvtColor(trans_img, cv2.COLOR_BGR2GRAY)
-                    # cv2.imshow("dila_img", gray_img)
-                    # Convert to binary image
-                    # _, binary_img = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
-                    # Erosion and dilation to denoise
-                    # Define the kernel (5 pixel * 5 pixel square)
-                    # kernel = np.ones((2, 2), np.uint8)
-                    # erode_img = cv2.erode(binary_img, kernel, iterations=1)
-                    # dila_img = cv2.dilate(erode_img, kernel, iterations=1)
-
                     cv2.imshow("dila_img", gray_img)
 
-                # cv2.imwrite('c:/Users/Shiao/Desktop/4/{}.png'.format(num), gray_img)
                 num += 1
-
                 cv2.putText(frame, "Potentials:", (int(imgPoints[2][0]), int(imgPoints[2][1]) - 5), cv2.FONT_HERSHEY_SIMPLEX,
                             0.5, [255, 255, 255])
                 center = np.average(imgPoints, axis=0).astype(np.int)
                 # draw the center of the detected armor board
                 cv2.circle(frame, center, 2, (0, 0, 255), -1)
-                # print("Target at (x,y) = (" + str(X) + "," + str(Y) + ")")
-
-                # print(potential_Targets)
-
-        # else:
-        # print("Looking for Targets...")
-
+                
         return potential_Targets
 
 
@@ -605,9 +593,9 @@ def main(camera: CameraSource, target_color: TargetColor):
     max_history_frame_delta = 0.15
     target_angle_history = []
 
-    # Open serial port with specified baud rate
-    baud_rate = 115200
-    ser=setUpSerial()
+    # Open serial port
+    ser = serial.Serial('/dev/ttyUSB0',115200)
+
     while True:
         "to calculate fps"
         startTime = time.time()
@@ -625,10 +613,11 @@ def main(camera: CameraSource, target_color: TargetColor):
         potential_Targetsets = find_contours(
             cv_config, binary, frame, depth_image, fps)
 
-        if potential_Targetsets:  # if returned any potential targets
+        # if returned any potential targets
+        if potential_Targetsets:  
             success = True
+            # if there are more than 1 potential targets, filter out fake & bad targets and lock on single approachable target
             if len(potential_Targetsets) > 1:
-                # filter out fake & bad targets and lock on single approachable target
                 final_Target = targetsFilter(
                     potential_Targetsets, frame, last_target_x)
 
@@ -665,17 +654,9 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             bbox = clipRect(bbox, (color_image.shape[1], color_image.shape[0]))
 
-            # init the tracker with target detected frame & target coordinace
 
-            # if bbox[2] >= 10 and bbox[3] >= 10:
-            #     tracker = cv2.TrackerKCF_create()
-            #     tracker.init(color_image, tuple(int(x) for x in bbox))
-            # else:
-            #     tracker = None
         else:
-            # if tracking_frames == 0:
-            #     sensor.set_option(rs.option.exposure, 88.000)
-
+     
             if tracker is not None and tracking_frames < max_tracking_frames:
                 tracking_frames += 1
                 # Update tracker
@@ -713,7 +694,9 @@ def main(camera: CameraSource, target_color: TargetColor):
             imu_yaw, imu_pitch, imu_roll = get_imu(ser)
             imu_yaw *= -1.2
             imu_pitch *= -1.2
+            
             print(imu_yaw, imu_pitch, imu_roll)
+
             global_yaw, global_pitch = imu_yaw + Yaw, imu_pitch + Pitch
             cartesian_pos = spherical_to_cartesian(
                 global_yaw, global_pitch,  depth) - np.array(camera.active_cam_config['camera_offset'])

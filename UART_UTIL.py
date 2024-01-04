@@ -3,14 +3,6 @@ import time
 import re
 
 
-def setUpSerial():
-    # ser = serial.Serial('/dev/ttyTHS0', 115200)  # Direct Connection
-    ser = serial.Serial('/dev/ttyUSB0',
-                        115200)  # sometime the USB ID change for no reason, switch this two line accordingly
-    # ser = serial.Serial('/dev/ttyUSB1', 115200)
-    return ser
-
-
 # Angles are in Byte Format
 def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll):
     # packet = b'\x0d' #header
@@ -38,15 +30,14 @@ def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sum
     packet = bytes.fromhex(packet)
     # print(packet)  # Packet Get Sent
     ser.write(packet)
-    # print(f"hex_int_Pitch: {hex_int_Pitch}")
-    # print(f"hex_deci_Pitch: {hex_deci_Pitch}")
-    # print(f"hex_int_Yaw: {hex_int_Yaw}")
-    # print(f"hex_deci_Yaw: {hex_deci_Yaw}")
-    # print(sumAll)
+
 
 
 def get_imu(ser):
     imu_value = [0, 0, 0]
+    if not ser.is_open:
+        return imu_value
+    
     while (True):
         print(ser.in_waiting)
         raw_data = ser.read(100)
@@ -72,19 +63,8 @@ def get_imu(ser):
 
 # # Example usage
 if __name__ == '__main__':
-    ser = setUpSerial()
+    ser = serial.Serial('/dev/ttyUSB0',115200)  
     while True:
         imu = get_imu(ser)
         print(imu)
 
-# Below are example of how to use this utility
-'''
-ser = serial.Serial('/dev/ttyTHS2', 115200)
-
-while 1==1 :
-
-	#send_data(ser,b'\x0b',b'\x09',b'\x06')
-	send_data(ser,'01','09','06')
-	time.sleep(5)
-
-'''
