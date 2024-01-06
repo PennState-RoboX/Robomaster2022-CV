@@ -21,7 +21,6 @@ active_cam_config = None
 frame_aligner = None
 
 
-
 def nothing(x):
     pass
 
@@ -79,7 +78,6 @@ def createTrackbarsForParams(window_name: str, params: CVParams):
             cv2.createTrackbar(key, window_name, int(
                 slider_min / scaling), int(slider_max / scaling), nothing)
             cv2.setTrackbarPos(key, window_name, int(value / scaling))
-
 
 
 def updateParamsFromTrackbars(window_name: str, params: CVParams):
@@ -200,7 +198,7 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
     camera_matrix, distort_coeffs = np.array(active_cam_config['camera_matrix'], dtype=np.float64), \
         np.array(active_cam_config['distort_coeffs'], dtype=np.float64)
 
-    # Undistort the given image points 
+    # Undistort the given image points
     imgPoints = cv2.undistortPoints(
         imgPoints, camera_matrix, distort_coeffs, P=camera_matrix)[:, 0, :]
 
@@ -229,7 +227,8 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
                               [-width_size_half, height_size_half, 0]], dtype=np.float64)
 
         # Use solvePnP to find the object's pose and calculate the norm of the translation vector for depth
-        retval, rvec, tvec = cv2.solvePnP(objPoints, imgPoints, camera_matrix, distort_coeffs)
+        retval, rvec, tvec = cv2.solvePnP(
+            objPoints, imgPoints, camera_matrix, distort_coeffs)
         meanDVal = np.linalg.norm(tvec[:, 0])
     elif active_cam_config['depth_source'] == DepthSource.STEREO:
         # Ensure the depth frame is available for stereo depth calculation
@@ -237,8 +236,10 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
 
         # Create a mask from the image points and scale it to match the depth frame size
         panel_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-        cv2.drawContours(panel_mask, [imgPoints.astype(np.int64)], -1, 1, thickness=cv2.FILLED)
-        panel_mask_scaled = cv2.resize(panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
+        cv2.drawContours(panel_mask, [imgPoints.astype(
+            np.int64)], -1, 1, thickness=cv2.FILLED)
+        panel_mask_scaled = cv2.resize(
+            panel_mask, (depth_frame.shape[1], depth_frame.shape[0]))
 
         # Calculate the mean depth value within the masked area
         meanDVal, _ = cv2.meanStdDev(depth_frame, mask=panel_mask_scaled)
@@ -247,9 +248,9 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
         raise RuntimeError('Invalid depth source in camera config')
 
     # Store and return the calculated depth, yaw, pitch, and image points
-    target_Dict = {"depth": meanDVal, "Yaw": angles[0], "Pitch": angles[1], "imgPoints": imgPoints}
+    target_Dict = {"depth": meanDVal,
+                   "Yaw": angles[0], "Pitch": angles[1], "imgPoints": imgPoints}
     return target_Dict
-
 
 
 @dataclass
@@ -405,7 +406,7 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
                 center = np.average(imgPoints, axis=0).astype(np.int)
                 # draw the center of the detected armor board
                 cv2.circle(frame, center, 2, (0, 0, 255), -1)
-                
+
         return potential_Targets
 
 
@@ -582,8 +583,8 @@ def main(camera: CameraSource, target_color: TargetColor):
     max_tracking_frames = 15        # Maximum number of frames to track
 
     max_history_length = 8          # Maximum number of samples for prediction
-    prediction_future_time = 0.2    # Time in seconds to predict the target's motion into the future
-   
+    # Time in seconds to predict the target's motion into the future
+    prediction_future_time = 0.2
 
     '''
     Maximum time in seconds between history frames
@@ -593,8 +594,8 @@ def main(camera: CameraSource, target_color: TargetColor):
     max_history_frame_delta = 0.15
     target_angle_history = []
 
-    # Open serial port
-    ser = serial.Serial('/dev/ttyUSB0',115200)
+    # Open serial port for data transmission to STM32
+    ser = serial.Serial('/dev/ttyUSB0', 115200)
 
     while True:
         "to calculate fps"
@@ -606,15 +607,13 @@ def main(camera: CameraSource, target_color: TargetColor):
         color_image, depth_image = camera.get_frames()
 
         """Do detection"""
-        binary, frame = read_morphology(
-            color_image, cv_config)  # changed read_morphology()'s output from binary to mask
+        binary, frame = read_morphology(color_image, cv_config)
 
         # get the list with all potential targets' info
-        potential_Targetsets = find_contours(
-            cv_config, binary, frame, depth_image, fps)
+        potential_Targetsets = find_contours(cv_config, binary, frame, depth_image, fps)
 
         # if returned any potential targets
-        if potential_Targetsets:  
+        if potential_Targetsets:
             success = True
             # if there are more than 1 potential targets, filter out fake & bad targets and lock on single approachable target
             if len(potential_Targetsets) > 1:
@@ -654,9 +653,8 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             bbox = clipRect(bbox, (color_image.shape[1], color_image.shape[0]))
 
-
         else:
-     
+
             if tracker is not None and tracking_frames < max_tracking_frames:
                 tracking_frames += 1
                 # Update tracker
@@ -694,19 +692,20 @@ def main(camera: CameraSource, target_color: TargetColor):
             imu_yaw, imu_pitch, imu_roll = get_imu(ser)
             imu_yaw *= -1.2
             imu_pitch *= -1.2
-            
+
             print(imu_yaw, imu_pitch, imu_roll)
 
-            global_yaw, global_pitch = imu_yaw + Yaw, imu_pitch + Pitch
-            cartesian_pos = spherical_to_cartesian(
-                global_yaw, global_pitch,  depth) - np.array(camera.active_cam_config['camera_offset'])
+            global_yaw = imu_yaw + Yaw
+            global_pitch = imu_pitch + Pitch
+
+            cartesian_pos = (spherical_to_cartesian(global_yaw, global_pitch, depth) -
+                             np.array(camera.active_cam_config['camera_offset']))
 
             # get last target's x-position in a 1280*720 frame/ used for function "targetsFilter()"
             # [2][0]=tr [0][0]=bl
             last_target_x = imgPoints[0][0] + \
                 (imgPoints[2][0] - imgPoints[0][0])/2
 
-            # last_target_y = imgPoints[0][1] - imgPoints[3][1]
 
             if (-30 < Pitch < 30) and (-45 < Yaw < 45):
                 cv2.line(frame, (int(imgPoints[1][0]), int(imgPoints[1][1])),
@@ -803,10 +802,10 @@ def main(camera: CameraSource, target_color: TargetColor):
 
         else:
             # Tracking failure
-            cv2.putText(frame, "Tracking failure detected", (600, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
-                        (0, 0, 255), 2)
-            send_data(ser, '00', '00', '00', '00', '00')   # send failure data(send 0 degree to make gimbal stop)
-
+            cv2.putText(frame, "Tracking failure detected", (600, 80),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+            # send failure data(send 0 degree to make gimbal stop)
+            send_data(ser, '00', '00', '00', '00', '00')
 
             # real Yaw time line
             # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
