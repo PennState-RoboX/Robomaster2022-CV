@@ -8,8 +8,6 @@ import serial
 from UART_UTIL import send_data, get_imu
 from camera_source import CameraSource
 from kinematic_prediction import poly_predict
-from solve_Angle import solve_Angle455
-from CamInfo_D455 import undistort
 
 import argparse
 import logging
