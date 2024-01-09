@@ -41,7 +41,7 @@ def get_imu(ser):
         print(ser.in_waiting)
         raw_data = ser.read(100)
         data = raw_data.decode('utf-8', 'replace')
-        print(len(raw_data))  # Count bytes
+        # print(len(raw_data))  # Count bytes
 
         if 'A5' in data:
             try:

@@ -591,7 +591,6 @@ def main(camera: CameraSource, target_color: TargetColor):
     max_history_length = 8          # Maximum number of samples for prediction
     # Time in seconds to predict the target's motion into the future
     prediction_future_time = 0.2
-
     '''
     Maximum time in seconds between history frames
     Should be long enough for a dropped frame or two,
@@ -653,7 +652,7 @@ def main(camera: CameraSource, target_color: TargetColor):
             bbox = clipRect(bbox, (color_image.shape[1], color_image.shape[0]))
 
         else:
-
+            ''' those lines never go through'''
             if tracker is not None and tracking_frames < max_tracking_frames:
                 tracking_frames += 1
                 # Update tracker
@@ -661,7 +660,7 @@ def main(camera: CameraSource, target_color: TargetColor):
             else:
                 success = False
 
-            # if Tracking success, vSolve Angle & Draw bounding box
+            # if Tracking success, Solve Angle & Draw bounding box
             if success:
                 # Solve angle
                 armor_tl_x = bbox[0]  # bbox = (init_x,init_y,w,h)
@@ -684,8 +683,12 @@ def main(camera: CameraSource, target_color: TargetColor):
                 p1 = (int(bbox[0]), int(bbox[1]))
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                 cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+            ''' why it never go through those lines '''
         if success:
-
+            '''
+            Do Prediction
+            '''
+            
             # imu_yaw, imu_pitch, imu_roll = 20,20,20
             # Comment this line when imu is not connected
             imu_yaw, imu_pitch, imu_roll = get_imu(ser)
