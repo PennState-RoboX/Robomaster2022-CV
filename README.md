@@ -13,7 +13,7 @@ This project is a computer vision application designed for real-time object dete
 
 **Camera Spec:**
 
-To be continue¡­
+To be continueï¼ƒ
 
 **System**
 
@@ -63,14 +63,14 @@ python3 ArmorDetect_D435i.py --target-color [RED/BLUE] --recording-source [Path 
 
 ```
 .
-©À©¤©¤ MVS                      # Tools for hikvision camera 
-©À©¤©¤ Deprecated               # deprecated scripts or old versions of files.
+â”œâ”€â”€ MVS                      # Tools for hikvision camera 
+â”œâ”€â”€ Deprecated               # deprecated scripts or old versions of files.
 
-©À©¤©¤ ArmorDetect_D435i.py     # armor detection, main file to run 
-©À©¤©¤ camera_params.py         # parameters and configurations of camera.
-©À©¤©¤ camera_source.py         # Camera class
-©À©¤©¤ hik_driver.py            # Driver script for Hikvision camera
-©À©¤©¤ KalmanFilterClass.py     # Implementation of the Kalman Filter for object tracking.
-©À©¤©¤ kinematic_prediction.py  # Module for predicting the kinematic behavior of detected objects.
-©¸©¤©¤ UART_UTIL.py             # serial communication
+â”œâ”€â”€ ArmorDetect_D435i.py     # armor detection, main file to run 
+â”œâ”€â”€ camera_params.py         # parameters and configurations of camera.
+â”œâ”€â”€ camera_source.py         # Camera class
+â”œâ”€â”€ hik_driver.py            # Driver script for Hikvision camera
+â”œâ”€â”€ KalmanFilterClass.py     # Implementation of the Kalman Filter for object tracking.
+â”œâ”€â”€ kinematic_prediction.py  # Module for predicting the kinematic behavior of detected objects.
+â””â”€â”€ UART_UTIL.py             # serial communication
 ```
