@@ -32,12 +32,11 @@ def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sum
     ser.write(packet)
 
 
-
 def get_imu(ser):
     imu_value = [0, 0, 0]
-    if not ser.is_open:
+    if not ser.in_waiting or ser.in_waiting == 0:
         return imu_value
-    
+
     while (True):
         print(ser.in_waiting)
         raw_data = ser.read(100)
@@ -63,8 +62,7 @@ def get_imu(ser):
 
 # # Example usage
 if __name__ == '__main__':
-    ser = serial.Serial('/dev/ttyUSB0',115200)  
+    ser = serial.Serial('/dev/ttyUSB0', 115200)
     while True:
         imu = get_imu(ser)
         print(imu)
-

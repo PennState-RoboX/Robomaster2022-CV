@@ -304,7 +304,7 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
 
             rect = cv2.minAreaRect(contour)
             # coordinates of the four vertices of the rectangle
-            coor = cv2.boxPoints(rect).astype(np.int)
+            coor = cv2.boxPoints(rect).astype(np.int32)
 
             rect_param = findVerticesOrder(coor)  # output order: [bl,tl,tr,br]
             rect = ImageRect(rect_param)
@@ -403,7 +403,7 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
                 num += 1
                 cv2.putText(frame, "Potentials:", (int(imgPoints[2][0]), int(imgPoints[2][1]) - 5), cv2.FONT_HERSHEY_SIMPLEX,
                             0.5, [255, 255, 255])
-                center = np.average(imgPoints, axis=0).astype(np.int)
+                center = np.average(imgPoints, axis=0).astype(np.int32)
                 # draw the center of the detected armor board
                 cv2.circle(frame, center, 2, (0, 0, 255), -1)
 
@@ -411,6 +411,16 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
 
 
 def targetsFilter(potential_Targetsets, frame, last_target_x):
+    
+    # if only one target, return it directly
+    if len(potential_Targetsets) == 1:
+        target = potential_Targetsets[0]
+        depth = float(target.get("depth", 0))
+        Yaw = float(target.get("Yaw", 0))
+        Pitch = float(target.get("Pitch", 0))
+        imgPoints = target.get("imgPoints", 0)
+        return [depth, Yaw, Pitch, imgPoints]
+    
     '''
     target with Number & greatest credits wins in filter process
     Credit Consideration: Area, Depth, Pitch, Yaw
@@ -444,13 +454,11 @@ def targetsFilter(potential_Targetsets, frame, last_target_x):
         Yaw = float(target.get("Yaw", 0))
         Pitch = float(target.get("Pitch", 0))
         imgPoints = target.get("imgPoints", 0)
-        # sub_x is abs(curr_target_x - last_target_x)
         sub_x = target.get("sub_x", 0)
 
         # current target's x-axis in a 1280*720 frame
         curr_target_x = imgPoints[0][0] + \
             (imgPoints[2][0] - imgPoints[0][0]) / 2
-        # print("curretn: ",curr_target_x, "last: ", last_target_x)
 
         # target with greatest credits wins in filter process;total_Credit = depth credit + angle credit
         depth_Credit = 0
@@ -488,9 +496,7 @@ def targetsFilter(potential_Targetsets, frame, last_target_x):
             best_Target = [depth, Yaw, Pitch, imgPoints]
 
     imgPoints = best_Target[3]
-    # cv2.line(frame, (int(imgPoints[1][0]+10), int(imgPoints[1][1])), (int(imgPoints[3][0]+10), int(imgPoints[3][1])), (255, 255, 255), 2)
-    # cv2.line(frame, (int(imgPoints[2][0]+10), int(imgPoints[2][1])), (int(imgPoints[0][0]+10), int(imgPoints[0][1])), (255, 255, 255), 2)
-
+   
     return best_Target
 
 
@@ -612,25 +618,18 @@ def main(camera: CameraSource, target_color: TargetColor):
         # get the list with all potential targets' info
         potential_Targetsets = find_contours(cv_config, binary, frame, depth_image, fps)
 
-        # if returned any potential targets
         if potential_Targetsets:
             success = True
-            # if there are more than 1 potential targets, filter out fake & bad targets and lock on single approachable target
-            if len(potential_Targetsets) > 1:
-                final_Target = targetsFilter(
-                    potential_Targetsets, frame, last_target_x)
 
-                depth = float(final_Target[0])
-                Yaw = float(final_Target[1])
-                Pitch = float(final_Target[2])
-                imgPoints = final_Target[3]
-            else:
-                final_Target = potential_Targetsets[0]
+            # filter out the best target
+            final_Target = targetsFilter(potential_Targetsets, frame, last_target_x)
 
-                depth = float(final_Target.get("depth", 0))
-                Yaw = float(final_Target.get("Yaw", 0))
-                Pitch = float(final_Target.get("Pitch", 0))
-                imgPoints = final_Target.get("imgPoints", 0)
+            #extract the target's position and angle
+            depth = float(final_Target[0])
+            Yaw = float(final_Target[1])
+            Pitch = float(final_Target[2])
+            imgPoints = final_Target[3]
+
 
             """init Tracking"""
             target_coor = [[int(imgPoints[0][0]), int(imgPoints[0][1])],
@@ -701,8 +700,7 @@ def main(camera: CameraSource, target_color: TargetColor):
             cartesian_pos = (spherical_to_cartesian(global_yaw, global_pitch, depth) -
                              np.array(camera.active_cam_config['camera_offset']))
 
-            # get last target's x-position in a 1280*720 frame/ used for function "targetsFilter()"
-            # [2][0]=tr [0][0]=bl
+            # store the current target's x-axis, used for detection in the next round
             last_target_x = imgPoints[0][0] + \
                 (imgPoints[2][0] - imgPoints[0][0])/2
 
