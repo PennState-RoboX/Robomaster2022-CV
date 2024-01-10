@@ -1,7 +1,5 @@
 # Robomaster2022-CV
 
-# RoboX CV Readme
-
 ## **Project Introduction**
 
 This project is a computer vision application designed for real-time object detection, tracking, and prediction in [Robot Master Competition](https://www.robomaster.com/en-US). The main features of this project are:
@@ -12,8 +10,7 @@ This project is a computer vision application designed for real-time object dete
 ## **Requirement**
 
 **Camera Spec:**
-
-To be continue＃
+under construction
 
 **System**
 
@@ -21,7 +18,7 @@ To be continue＃
 - Robot Master DevelopmentBoard C
 
 **Packages**
-- Instll MVS SDK for Hikvision camera
+- Install MVS SDK for Hikvision camera
 https://www.hikvision.com/us-en/support/download/sdk/
 - See **`requirements.txt`** for more detail
 
@@ -37,7 +34,8 @@ python3 ArmorDetect_D435i.py --target-color [RED/BLUE]
 
 ### **Debug Mode**
 
-Run the project with additional debug output:
+Run the project with additional debug output
+You can adjust the color threshold to detect the Armor board in different light settings. 
 
 ```bash
 python3 ArmorDetect_D435i.py --debug --target-color [RED/BLUE]
@@ -45,7 +43,7 @@ python3 ArmorDetect_D435i.py --debug --target-color [RED/BLUE]
 
 ### **Recording Mode**
 
-Run the project to record video :
+The project supports recording video for testing:
 
 ```bash
 python3 ArmorDetect_D435i.py --target-color [RED/BLUE] --recording-dest [Path for output video] 
@@ -53,7 +51,7 @@ python3 ArmorDetect_D435i.py --target-color [RED/BLUE] --recording-dest [Path fo
 
 ### Test via Recording
 
-You can also load existing video to test the project:
+You can load existing videos (.mp4) to test the project:
 
 ```
 python3 ArmorDetect_D435i.py --target-color [RED/BLUE] --recording-source [Path for input video]
