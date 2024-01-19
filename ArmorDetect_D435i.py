@@ -14,6 +14,7 @@ import logging
 import time
 from camera_params import camera_params, DepthSource
 from KalmanFilterClass import KalmanFilter
+from Target import Target
 
 active_cam_config = None
 frame_aligner = None
@@ -343,7 +344,7 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
                     second_data.append((first_data[i], first_data[nextRect]))
 
                 nextRect = nextRect + 1
-
+        
         for r1, r2 in second_data:  # find vertices for each
             # if find potential bounded lightbar formed targets
             if abs(r1.points[0][1] - r2.points[2][1]) <= 3 * (abs(r1.points[0][0] - r2.points[2][0])):
@@ -359,7 +360,10 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
                     dtype=np.float64)
                 target_Dict = get_3d_target_location(
                     imgPoints, frame, depth_frame)
-                potential_Targets.append(target_Dict)
+
+                target = Target(target_Dict)
+                
+                potential_Targets.append(target)
 
                 if debug:
                     '''collecting data set at below'''
@@ -412,12 +416,7 @@ def targetsFilter(potential_Targetsets, frame, last_target_x):
     
     # if only one target, return it directly
     if len(potential_Targetsets) == 1:
-        target = potential_Targetsets[0]
-        depth = float(target.get("depth", 0))
-        Yaw = float(target.get("Yaw", 0))
-        Pitch = float(target.get("Pitch", 0))
-        imgPoints = target.get("imgPoints", 0)
-        return [depth, Yaw, Pitch, imgPoints]
+        return potential_Targetsets[0] # the only target class object
     
     '''
     target with Number & greatest credits wins in filter process
@@ -428,9 +427,10 @@ def targetsFilter(potential_Targetsets, frame, last_target_x):
     best_Target = []  # order: [depth, Yaw, Pitch, imgpoints]
     all_distance_diff = []  # every target's x-axis distance between last target
 
+    # if the target from last frame exists, filter out the closest one to keep tracking on the same target
     if last_target_x != None:
         for target in potential_Targetsets:
-            imgPoints = target.get("imgPoints", 0)
+            imgPoints = target.imgPoints
 
             # current target's x-axis in a 1280*720 frame
             curr_target_x = imgPoints[0][0] + \
@@ -439,20 +439,13 @@ def targetsFilter(potential_Targetsets, frame, last_target_x):
             all_distance_diff.append(abs(curr_target_x - last_target_x))
         sort_index = np.argsort(all_distance_diff)  # order: small to large
         closest_target = potential_Targetsets[sort_index[0]]
-        depth = float(closest_target.get("depth", 0))
-        Yaw = float(closest_target.get("Yaw", 0))
-        Pitch = float(closest_target.get("Pitch", 0))
-        imgPoints = closest_target.get("imgPoints", 0)
-        best_Target = [depth, Yaw, Pitch, imgPoints]
-
-        return best_Target
+        return closest_target
 
     for target in potential_Targetsets:
-        depth = float(target.get("depth", 0))
-        Yaw = float(target.get("Yaw", 0))
-        Pitch = float(target.get("Pitch", 0))
-        imgPoints = target.get("imgPoints", 0)
-        sub_x = target.get("sub_x", 0)
+        depth = float(target.depth)
+        Yaw = float(target.yaw)
+        Pitch = float(target.pitch)
+        imgPoints = target.imgPoints
 
         # current target's x-axis in a 1280*720 frame
         curr_target_x = imgPoints[0][0] + \
@@ -491,10 +484,8 @@ def targetsFilter(potential_Targetsets, frame, last_target_x):
         """evaluate score"""
         if (depth_Credit + angle_Credit) > max_Credit:
             max_Credit = (depth_Credit + angle_Credit)
-            best_Target = [depth, Yaw, Pitch, imgPoints]
+            best_Target = target
 
-    imgPoints = best_Target[3]
-   
     return best_Target
 
 
@@ -581,7 +572,7 @@ def main(camera: CameraSource, target_color: TargetColor):
     track_init_frame = None
     last_target_x = None
     last_target_y = None
-    success = False
+    # success = False
     tracker = None
     tracking_frames = 0
     max_tracking_frames = 15        # Maximum number of frames to track
@@ -600,6 +591,9 @@ def main(camera: CameraSource, target_color: TargetColor):
     # Open serial port for data transmission to STM32
     ser = serial.Serial('/dev/ttyUSB0', 115200)
 
+    detect_success = False
+    track_success = False
+
     while True:
         "to calculate fps"
         startTime = time.time()
@@ -615,17 +609,18 @@ def main(camera: CameraSource, target_color: TargetColor):
         # get the list with all potential targets' info
         potential_Targetsets = find_contours(cv_config, binary, frame, depth_image, fps)
 
-        if potential_Targetsets:
-            success = True
+        if potential_Targetsets: # if dectection success
+            
+            detect_success = True
 
             # filter out the best target
             final_Target = targetsFilter(potential_Targetsets, frame, last_target_x)
 
             #extract the target's position and angle
-            depth = float(final_Target[0])
-            Yaw = float(final_Target[1])
-            Pitch = float(final_Target[2])
-            imgPoints = final_Target[3]
+            depth = float(final_Target.depth)
+            Yaw = float(final_Target.yaw)
+            Pitch = float(final_Target.pitch)
+            imgPoints = final_Target.imgPoints
 
 
             """init Tracking"""
@@ -633,7 +628,6 @@ def main(camera: CameraSource, target_color: TargetColor):
                            [int(imgPoints[1][0]), int(imgPoints[1][1])],
                            [int(imgPoints[2][0]), int(imgPoints[2][1])],
                            [int(imgPoints[3][0]), int(imgPoints[3][1])]]  # [bl,tl,tr,br]
-
             tracking_frames = 0
 
             target_coor_tl_x = int(target_coor[1][0])
@@ -649,17 +643,17 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             bbox = clipRect(bbox, (color_image.shape[1], color_image.shape[0]))
 
-        else:
-            ''' those lines never go through'''
+        else: # if detection failed
+            detect_success = False
             if tracker is not None and tracking_frames < max_tracking_frames:
                 tracking_frames += 1
                 # Update tracker
-                success, bbox = tracker.update(color_image)
+                track_success, bbox = tracker.update(color_image)
             else:
-                success = False
+                track_success = False
 
             # if Tracking success, Solve Angle & Draw bounding box
-            if success:
+            if track_success:
                 # Solve angle
                 armor_tl_x = bbox[0]  # bbox = (init_x,init_y,w,h)
                 armor_tl_y = bbox[1]
@@ -681,8 +675,14 @@ def main(camera: CameraSource, target_color: TargetColor):
                 p1 = (int(bbox[0]), int(bbox[1]))
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                 cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
-            ''' why it never go through those lines '''
-        if success:
+
+
+        if detect_success or track_success:
+
+            # store the current target's x-axis, used for detection in the next round
+            last_target_x = imgPoints[0][0] + \
+                (imgPoints[2][0] - imgPoints[0][0])/2
+
             '''
             Do Prediction
             '''
@@ -700,10 +700,6 @@ def main(camera: CameraSource, target_color: TargetColor):
 
             cartesian_pos = (spherical_to_cartesian(global_yaw, global_pitch, depth) -
                              np.array(camera.active_cam_config['camera_offset']))
-
-            # store the current target's x-axis, used for detection in the next round
-            last_target_x = imgPoints[0][0] + \
-                (imgPoints[2][0] - imgPoints[0][0])/2
 
 
             if (-30 < Pitch < 30) and (-45 < Yaw < 45):
@@ -829,7 +825,6 @@ def main(camera: CameraSource, target_color: TargetColor):
         cv2.waitKey(1)
 
         # print(tvec, Yaw, Pitch)
-
         endtime = time.time()
         fps = 1 / (endtime - startTime)
         # print(fps)
@@ -859,6 +854,5 @@ if __name__ == "__main__":
     # choose camera params
     camera = CameraSource(camera_params['HIK MV-CS016-10UC(A)_ipad'], args.target_color.value,
                           recording_source=args.recording_source, recording_dest=args.recording_dest)
-
     active_cam_config = camera.active_cam_config
     main(camera, args.target_color)
