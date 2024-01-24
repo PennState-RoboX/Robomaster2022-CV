@@ -15,6 +15,7 @@ import time
 from camera_params import camera_params, DepthSource
 from KalmanFilterClass import KalmanFilter
 from Target import Target
+from sort import *
 
 active_cam_config = None
 frame_aligner = None
@@ -441,6 +442,7 @@ def targetsFilter(potential_Targetsets, frame, last_target_x):
         closest_target = potential_Targetsets[sort_index[0]]
         return closest_target
 
+    # if the target from last frame doesn't exist, filter out the best one based on credits
     for target in potential_Targetsets:
         depth = float(target.depth)
         Yaw = float(target.yaw)
@@ -622,28 +624,30 @@ def main(camera: CameraSource, target_color: TargetColor):
             Pitch = float(final_Target.pitch)
             imgPoints = final_Target.imgPoints
 
+            # """init tracking"""
+            # tracking_frames = 0
+            # # init KCF tracker
+            # tracker = cv2.legacy.TrackerKCF_create()
+            # bbox = (final_Target.topLeft[0], final_Target.topLeft[1], abs(
+            #     final_Target.topRight[0] - final_Target.topLeft[0]), abs(final_Target.bottomLeft[1] - final_Target.topLeft[1]))
+            # tracker.init(color_image, bbox)
 
-            """init Tracking"""
-            target_coor = [[int(imgPoints[0][0]), int(imgPoints[0][1])],
-                           [int(imgPoints[1][0]), int(imgPoints[1][1])],
-                           [int(imgPoints[2][0]), int(imgPoints[2][1])],
-                           [int(imgPoints[3][0]), int(imgPoints[3][1])]]  # [bl,tl,tr,br]
-            tracking_frames = 0
+            '''Sort tracking'''
+            new_tracker = Sort()
 
-            target_coor_tl_x = int(target_coor[1][0])
-            target_coor_tl_y = int(target_coor[1][1])
-            target_coor_width = abs(
-                int(target_coor[2][0]) - int(target_coor[1][0]))
-            target_coor_height = abs(
-                int(target_coor[1][1]) - int(target_coor[0][1]))
+            bbox = (final_Target.topLeft[0], final_Target.topLeft[1], abs(
+                 final_Target.topRight[0] - final_Target.topLeft[0]), abs(final_Target.bottomLeft[1] - final_Target.topLeft[1]))
+            
+            
 
-            # bbox format:  (init_x,init_y,w,h)
-            bbox = (target_coor_tl_x - target_coor_width * 0.05, target_coor_tl_y, target_coor_width * 1.10,
-                    target_coor_height)
 
-            bbox = clipRect(bbox, (color_image.shape[1], color_image.shape[0]))
+
+
+
 
         else: # if detection failed
+            """Prepare Tracking"""
+            
             detect_success = False
             if tracker is not None and tracking_frames < max_tracking_frames:
                 tracking_frames += 1
@@ -652,9 +656,20 @@ def main(camera: CameraSource, target_color: TargetColor):
             else:
                 track_success = False
 
-            # if Tracking success, Solve Angle & Draw bounding box
+            """if Tracking success, Solve Angle & Draw bounding box"""
             if track_success:
                 # Solve angle
+                target_coor_width = abs(
+                    int(final_Target.topRight[0]) - int(final_Target.topLeft[0]))
+                target_coor_height = abs(
+                    int(final_Target.topLeft[1]) - int(final_Target.bottomLeft[1]))
+                
+                # bbox format:  (init_x,init_y,w,h)
+                bbox = (final_Target.topLeft[0] - target_coor_width * 0.05, final_Target.topLeft[1], target_coor_width * 1.10,
+                        target_coor_height) # to enlarge the bbox to include the whole target, for better tracking by KCF or others
+                
+                bbox = clipRect(bbox, (color_image.shape[1], color_image.shape[0])) # clip the bbox to fit the frame
+                
                 armor_tl_x = bbox[0]  # bbox = (init_x,init_y,w,h)
                 armor_tl_y = bbox[1]
                 armor_bl_x = bbox[0]
@@ -668,13 +683,17 @@ def main(camera: CameraSource, target_color: TargetColor):
                      [armor_br_x, armor_br_y]], dtype=np.float64)
                 target_Dict = get_3d_target_location(
                     imgPoints, color_image, depth_image)
-                depth, Yaw, Pitch = target_Dict['depth'], target_Dict['Yaw'], target_Dict['Pitch']
+                
+                final_Target.depth = target_Dict["depth"]
+                final_Target.yaw = target_Dict["Yaw"]
+                final_Target.pitch = target_Dict["Pitch"]
+                final_Target.imgPoints = target_Dict["imgPoints"]
                 # depth = float(tvec[2][0])
 
                 '''draw tracking bouding boxes'''
                 p1 = (int(bbox[0]), int(bbox[1]))
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-                cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+                cv2.rectangle(frame, p1, p2, (0, 255, 0), 2, 1)
 
 
         if detect_success or track_success:
@@ -716,9 +735,9 @@ def main(camera: CameraSource, target_color: TargetColor):
                 cv2.putText(frame, str(global_pitch), (90, 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
-                """test Kalman Filter"""
-                X = int((imgPoints[0][0] + imgPoints[2][0]) / 2)
-                Y = int((imgPoints[0][1] + imgPoints[2][1]) / 2)
+                # """test Kalman Filter"""
+                # X = int((imgPoints[0][0] + imgPoints[2][0]) / 2)
+                # Y = int((imgPoints[0][1] + imgPoints[2][1]) / 2)
 
                 current_time = time.time()
                 if len(target_angle_history) < 1 or current_time - target_angle_history[-1][0] > max_history_frame_delta:
