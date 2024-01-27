@@ -15,7 +15,7 @@ import time
 from camera_params import camera_params, DepthSource
 from KalmanFilterClass import KalmanFilter
 from Target import Target
-from sort import *
+#from sort import *
 
 active_cam_config = None
 frame_aligner = None
@@ -632,13 +632,19 @@ def main(camera: CameraSource, target_color: TargetColor):
             #     final_Target.topRight[0] - final_Target.topLeft[0]), abs(final_Target.bottomLeft[1] - final_Target.topLeft[1]))
             # tracker.init(color_image, bbox)
 
-            '''Sort tracking'''
-            new_tracker = Sort()
+            '''SORT tracking'''
+            #new_tracker = Sort()
 
-            bbox = (final_Target.topLeft[0], final_Target.topLeft[1], abs(
-                 final_Target.topRight[0] - final_Target.topLeft[0]), abs(final_Target.bottomLeft[1] - final_Target.topLeft[1]))
+            # bbox = (final_Target.topLeft[0], final_Target.topLeft[1], abs(
+            #      final_Target.topRight[0] - final_Target.topLeft[0]), abs(final_Target.bottomLeft[1] - final_Target.topLeft[1]))
             
-            
+            # new_trackers = new_tracker.update([bbox])
+
+            # bbox = new_trackers[0]
+
+
+
+
 
 
 
