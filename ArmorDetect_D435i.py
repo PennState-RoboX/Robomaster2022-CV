@@ -226,9 +226,9 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
                               [width_size_half, height_size_half, 0],
                               [-width_size_half, height_size_half, 0]], dtype=np.float64)
 
-        # Use solvePnP to find the object's pose and calculate the norm of the translation vector for depth
+        # Use solvePnP_IPPE method to find the object's pose and calculate the norm of the translation vector for depth
         retval, rvec, tvec = cv2.solvePnP(
-            objPoints, imgPoints, camera_matrix, distort_coeffs)
+            objPoints, imgPoints, camera_matrix, distort_coeffs, flags=cv2.SOLVEPNP_IPPE)
         meanDVal = np.linalg.norm(tvec[:, 0])
     elif active_cam_config['depth_source'] == DepthSource.STEREO:
         # Ensure the depth frame is available for stereo depth calculation
@@ -590,8 +590,12 @@ def main(camera: CameraSource, target_color: TargetColor):
     max_history_frame_delta = 0.15
     target_angle_history = []
 
-    # Open serial port for data transmission to STM32
-    ser = serial.Serial('/dev/ttyUSB0', 115200)
+    # Try to Open serial port for data transmission to STM32, if not found, continue without it
+    try:
+        ser = serial.Serial('/dev/ttyUSB0', 115200)
+    except:
+        ser = None
+        print("Serial port not found, continuing without it")
 
     detect_success = False
     track_success = False
@@ -711,10 +715,13 @@ def main(camera: CameraSource, target_color: TargetColor):
             '''
             Do Prediction
             '''
+
+            if ser is not None:
+                imu_yaw, imu_pitch, imu_roll = get_imu(ser) 
+            else:
+                imu_yaw, imu_pitch, imu_roll = 20,20,20  # for test
             
-            # imu_yaw, imu_pitch, imu_roll = 20,20,20
-            # Comment this line when imu is not connected
-            imu_yaw, imu_pitch, imu_roll = get_imu(ser)
+            
             imu_yaw *= -1.2
             imu_pitch *= -1.2
 
@@ -825,7 +832,8 @@ def main(camera: CameraSource, target_color: TargetColor):
             cv2.putText(frame, "Tracking failure detected", (600, 80),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
             # send failure data(send 0 degree to make gimbal stop)
-            send_data(ser, '00', '00', '00', '00', '00')
+            if ser is not None:
+                send_data(ser, '00', '00', '00', '00', '00')
 
             # real Yaw time line
             # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
