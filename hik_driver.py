@@ -3,9 +3,18 @@
 
 import cv2
 import numpy as np
+import importlib
+
+import sys
+import os
+import importlib
+
+# CameraParams_const = importlib.import_module("MVS.Samples.64.Python.MvImport.MvCameraControl_class")
 
 
-from MVS.Samples.aarch64.Python.MvImport.MvCameraControl_class import *
+# from MVS.Samples.64.Python.MvImport.MvCameraControl_class import *
+sys.path.append("MVS/Samples/64/Python/MvImport")
+from MvCameraControl_class import *
 g_bExit = False
 
 
@@ -14,6 +23,7 @@ def hik_init():
     print("SDKVersion[0x%x]" % SDKVersion)
 
     deviceList = MV_CC_DEVICE_INFO_LIST()
+    
     tlayerType = MV_GIGE_DEVICE | MV_USB_DEVICE
 
     # ch:枚举设备 | en:Enum device

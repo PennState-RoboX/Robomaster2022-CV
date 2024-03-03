@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>BasicDemoByGenTL_zh_EN.qm</file>
+    </qresource>
+</RCC>
