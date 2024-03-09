@@ -4,32 +4,24 @@ import re
 
 
 # Angles are in Byte Format
-def send_data(ser, hex_Yaw, hex_Pitch, checksum):
-    # packet = b'\x0d' #header
-    # packet = packet + angleA
-    # packet = packet + angleB
-    # packet = packet + angleC
-    # packet = packet + b'\x03' #not used
-    # packet = packet + b'\x04'
-    # packet = packet + b'\x00'
-    # packet = packet + b'\x04'
-    # packet = packet + b'\x00'
-    # packet = packet + b'\x04'
-    # packet = packet + b'\x00'
+def send_data(ser, hex_Yaw, hex_Pitch, checksum, detect_success: bool):
+    # Convert detect_success from boolean to hex string ('01' for True, '00' for False)
+    hex_detect_success = '01' if detect_success else '00'
+    
+    # Construct the packet
     packet = 'a5'  # Header Byte
     packet += '5a'
-    packet += '0b'  # Length of Packet, 11 bytes
+    packet += '0d'  # Length of Packet, 11 bytes
     packet += hex_Yaw
     packet += hex_Pitch
     packet += checksum
-    # # packet = packet + fire_comma6nd
+    packet += hex_detect_success
     packet += 'ff'
-
     
-    # print(packet)  # Packat before Conversion
-    packet = bytes.fromhex(packet)
-    # print(packet)  # Packet Get Sent
-    ser.write(packet)
+    # Convert the hexadecimal string to bytes
+    packet_bytes = bytes.fromhex(packet)
+    # Write the bytes to the serial port
+    ser.write(packet_bytes)
 
 
 def get_imu(ser):
@@ -52,6 +44,7 @@ def get_imu(ser):
                 # Convert the first three elements to floats and return them
                 if len(imu_readings) >= 3:
                     imu_value = [float(x) for x in imu_readings[:3]]
+                    # print(imu_value)
                     return imu_value
             except Exception as e:
                 print(f"Error processing IMU data: {e}")
