@@ -107,9 +107,9 @@ def hik_init():
     # check frame readability
     for i in range(5):
         ret = cam.MV_CC_GetOneFrameTimeout(
-            data_buf, nPayloadSize, stFrameInfo, 1000)
+            data_buf, nPayloadSize, stFrameInfo, 5000) # modified the nMsec=1000 to 5000, 1000 failed frequently
         if ret != 0:
-            print("pipline broke while testing frame readability" % ret)
+            print("pipline broke while testing frame readability", ret)
             sys.exit()
 
     return info_lst
