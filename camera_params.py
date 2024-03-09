@@ -89,6 +89,23 @@ camera_params = {
         'p1': 0.0,
         'p2': 0.0,
         'k3': 0.0
+    },
+    'HIK MV-CS016-10UC General': {
+        # all of HIK camera's params (and units) are adjustable in the MVS platform
+        'frame_rate': 249,
+        'exposure': {'red': 4000.0, 'blue': 5000.0},
+        'capture_res': (1280, 720),
+        'depth_source': DepthSource.PNP,
+        'fov': (48.33, 30),
+        'cx': 640,
+        'cy': 360,
+        'fx': 3028.8,
+        'fy': 3028.2,
+        'k1': 0.0007347,
+        'k2': 0.0733,
+        'p1': 0.0,
+        'p2': 0.0,
+        'k3': 0.0
     }
 }
 
