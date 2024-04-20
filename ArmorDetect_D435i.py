@@ -11,7 +11,7 @@ from kinematic_prediction import poly_predict
 
 import argparse
 import logging
-import time
+import timeƒ
 from camera_params import camera_params, DepthSource
 from KalmanFilterClass import KalmanFilter
 from Target import Target
@@ -749,7 +749,9 @@ def main(camera: CameraSource, target_color: TargetColor):
                     weights = np.linspace(float(max_history_length) - len(
                         time_hist_array) + 1.0, float(max_history_length) + 1.0, len(time_hist_array))
                     predicted_x = poly_predict(time_hist_array, x_hist_array, degree,
-                                               time_hist_array[-1] + prediction_future_time, weights=weights)
+                                               time_hist_array[-1] + prediction_future_time, weights=weights) 
+                    # time_hist_array[-1] retrieves the most recent time point & 
+                    # prediction_future_time is the future time interval to predict beyond the most recent time data point
                     predicted_y = poly_predict(time_hist_array, y_hist_array, degree,
                                                time_hist_array[-1] + prediction_future_time, weights=weights)
                     predicted_z = poly_predict(time_hist_array, z_hist_array, degree,
