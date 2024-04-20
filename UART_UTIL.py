@@ -10,6 +10,7 @@ import re
 # Angles are in Byte Format
 def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll):
 
+    ## ! Explaination of send_data function
     ## ser is the serial object
     ## hex_int_Pitch is the integer part of the Pitch angle
     ## hex_deci_Pitch is the decimal part of the Pitch angle
@@ -45,17 +46,23 @@ def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sum
 
 
 def get_imu(ser):
-    imu_value = [0, 0, 0]
-    if not ser.in_waiting or ser.in_waiting == 0:
+
+    ## ! Explaination of get_imu function
+    ## ser is the serial object
+    ## The function reads the data from the IMU
+    ## The function returns the Pitch and Yaw angles of the board
+
+    imu_value = [0, 0, 0] # Default value
+    if not ser.in_waiting or ser.in_waiting == 0: 
+        # If there is no data in the buffer return the default value
         return imu_value
 
-    while (True):
-        print(ser.in_waiting)
-        raw_data = ser.read(100)
-        data = raw_data.decode('utf-8', 'replace')
-        # print(len(raw_data))  # Count bytes
+    while (True): # Loop to read the data from the IMU
+        print(ser.in_waiting) # Count bytes
+        raw_data = ser.read(100) # Read the data from the IMU
+        data = raw_data.decode('utf-8', 'replace') # Decode the data
 
-        if 'A5' in data:
+        if 'A5' in data: # Check if the data contains the 'A5' header we made earlier
             try:
                 start = data.index('A5') + 2  # Skip the 'A5'
                 end = data.index('A5', start)  # Find the next 'A5' or end of the string
@@ -74,7 +81,7 @@ def get_imu(ser):
 
 # # Example usage
 if __name__ == '__main__':
-    ser = serial.Serial('/dev/ttyUSB0', 115200)
+    ser = serial.Serial('/dev/ttyUSB0', 115200) # Open the serial port
     while True:
         imu = get_imu(ser)
         print(imu)
