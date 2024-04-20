@@ -5,13 +5,13 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 import serial
-from UART_UTIL import send_data, get_imu
+from UART_UTIL import send_data, get_imu # Import the send_data and get_imu functions from UART_UTIL.py
 from camera_source import CameraSource
 from kinematic_prediction import poly_predict
 
 import argparse
 import logging
-import time
+import timeƒ
 from camera_params import camera_params, DepthSource
 from KalmanFilterClass import KalmanFilter
 from Target import Target
@@ -194,6 +194,18 @@ def cartesian_to_spherical(coords: np.ndarray):
                 math.sqrt(coords[0] ** 2 + coords[1] ** 2), coords[2])),
             np.linalg.norm(coords).item())
 
+def rotationMatrixToEulerAngles(R):
+    sy = np.sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
+    singular = sy < 1e-6
+    if not singular:
+        x = np.arctan2(R[2,1], R[2,2])
+        y = np.arctan2(-R[2,0], sy)
+        z = np.arctan2(R[1,0], R[0,0])
+    else:
+        x = np.arctan2(-R[1,2], R[1,1])
+        y = np.arctan2(-R[2,0], sy)
+        z = 0
+    return np.array([x, y, z])
 
 def get_3d_target_location(imgPoints, frame, depth_frame):
     # Retrieve the camera's data & distortion coefficients from config
@@ -231,7 +243,16 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
         # Use solvePnP_IPPE method to find the object's pose and calculate the norm of the translation vector for depth
         retval, rvec, tvec = cv2.solvePnP(
             objPoints, imgPoints, camera_matrix, distort_coeffs, flags=cv2.SOLVEPNP_IPPE)
+        
+        # Get Depth value
         meanDVal = np.linalg.norm(tvec[:, 0])
+        Yaw = np.arctan(tvec[(0,0)]/ tvec[(2,0)]) / 2 / 3.1415926535897932 * 360
+        Pitch = -(np.arctan(tvec[(1, 0)] / tvec[(2, 0)]) / 2 / 3.1415926535897932 * 360)
+
+        
+
+
+
     elif active_cam_config['depth_source'] == DepthSource.STEREO:
         # Ensure the depth frame is available for stereo depth calculation
         assert depth_frame is not None
@@ -251,7 +272,7 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
 
     # Store and return the calculated depth, yaw, pitch, and image points
     target_Dict = {"depth": meanDVal,
-                   "Yaw": angles[0], "Pitch": angles[1], "imgPoints": imgPoints}
+                   "Yaw": Yaw, "Pitch": Pitch, "imgPoints": imgPoints}
     return target_Dict
 
 
@@ -319,10 +340,6 @@ def find_contours(config: CVParams, binary, frame, depth_frame, fps):
             cv2.circle(frame, rect.points[2], 9, (255, 255, 0), -1)
             # test bottom left
             cv2.circle(frame, rect.points[3], 9, (0, 100, 250), -1)
-
-            # box = np.int0(coor)
-            # cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
-            # print("rh: ",rh, "rw: ",rw,"z: ",z)
 
             """filer out undesired rectangle, only keep lightBar-like shape"""
             """90--->45-->0-center(horizontally)->90-->45-->0"""
@@ -514,7 +531,6 @@ def findVerticesOrder(pts):
     # Top sort: Top[0] = tl ; Top[1] = tr
     Top = Top[np.argsort(Top[:, 0]), :]
 
-    # print(Bottom[0], Top[0], Top[1], Bottom[1])
     return np.stack([Bottom[0], Top[0], Top[1], Bottom[1]], axis=0)
 
 
@@ -536,8 +552,8 @@ def decimalToHexSerial(Yaw, Pitch):
 
     # 构建十六进制数据列表
     # build hexadecimal data list
-    serial_lst = [hex_Yaw, hex_Pitch, hex_checksum]
-    return serial_lst
+    return hex_Yaw, hex_Pitch, hex_checksum
+     
 
 def main(camera: CameraSource, target_color: TargetColor):
     """
@@ -593,7 +609,7 @@ def main(camera: CameraSource, target_color: TargetColor):
             updateParamsFromTrackbars("CV Parameters", cv_config)
 
         color_image, depth_image = camera.get_frames()
-
+        
         """Do detection"""
         binary, frame = read_morphology(color_image, cv_config)
 
@@ -613,32 +629,7 @@ def main(camera: CameraSource, target_color: TargetColor):
             Pitch = float(final_Target.pitch)
             imgPoints = final_Target.imgPoints
 
-            # """init tracking"""
-            # tracking_frames = 0
-            # # init KCF tracker
-            # tracker = cv2.legacy.TrackerKCF_create()
-            # bbox = (final_Target.topLeft[0], final_Target.topLeft[1], abs(
-            #     final_Target.topRight[0] - final_Target.topLeft[0]), abs(final_Target.bottomLeft[1] - final_Target.topLeft[1]))
-            # tracker.init(color_image, bbox)
-
             '''SORT tracking'''
-            #new_tracker = Sort()
-
-            # bbox = (final_Target.topLeft[0], final_Target.topLeft[1], abs(
-            #      final_Target.topRight[0] - final_Target.topLeft[0]), abs(final_Target.bottomLeft[1] - final_Target.topLeft[1]))
-            
-            # new_trackers = new_tracker.update([bbox])
-
-            # bbox = new_trackers[0]
-
-
-
-
-
-
-
-
-
 
         else: # if detection failed
             """Prepare Tracking"""
@@ -702,16 +693,14 @@ def main(camera: CameraSource, target_color: TargetColor):
             '''
 
             if ser is not None:
-                imu_yaw, imu_pitch, imu_roll = get_imu(ser) 
+                imu_yaw, imu_pitch, imu_roll = get_imu(ser)
+                print(f"imu data receive: {imu_yaw}, {imu_pitch}, {imu_roll}")
             else:
                 imu_yaw, imu_pitch, imu_roll = 20,20,20  # for test
-            
+
             
             imu_yaw *= -1.2
             imu_pitch *= -1.2
-
-            print(imu_yaw, imu_pitch, imu_roll)
-
             global_yaw = imu_yaw + Yaw
             global_pitch = imu_pitch + Pitch
 
@@ -728,9 +717,9 @@ def main(camera: CameraSource, target_color: TargetColor):
                          (33, 255, 255), 2)
                 cv2.putText(frame, str(depth), (90, 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(np.deg2rad(Yaw)), (90, 50),
+                cv2.putText(frame, str(Yaw), (90, 50),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
-                cv2.putText(frame, str(np.deg2rad(Pitch)), (90, 80),
+                cv2.putText(frame, str(Pitch), (90, 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
                 # """test Kalman Filter"""
@@ -760,7 +749,9 @@ def main(camera: CameraSource, target_color: TargetColor):
                     weights = np.linspace(float(max_history_length) - len(
                         time_hist_array) + 1.0, float(max_history_length) + 1.0, len(time_hist_array))
                     predicted_x = poly_predict(time_hist_array, x_hist_array, degree,
-                                               time_hist_array[-1] + prediction_future_time, weights=weights)
+                                               time_hist_array[-1] + prediction_future_time, weights=weights) 
+                    # time_hist_array[-1] retrieves the most recent time point & 
+                    # prediction_future_time is the future time interval to predict beyond the most recent time data point
                     predicted_y = poly_predict(time_hist_array, y_hist_array, degree,
                                                time_hist_array[-1] + prediction_future_time, weights=weights)
                     predicted_z = poly_predict(time_hist_array, z_hist_array, degree,
@@ -800,20 +791,17 @@ def main(camera: CameraSource, target_color: TargetColor):
                 elif relative_pred_yaw < -50:
                     relative_pred_yaw = -50
 
-                # send predicted 
-                # serial_lst = decimalToHexSerial(
-                #     relative_pred_yaw, relative_pred_pitch)
-                
-                # send Detected
+
                 Yaw = np.deg2rad(Yaw)
                 Pitch = np.deg2rad(Pitch)
-                serial_lst = decimalToHexSerial(
-                    Yaw, Pitch)
-                
 
-                if ser is not None:
-                    send_data(
-                        ser, serial_lst[0], serial_lst[1], serial_lst[2])
+                print(f"imu data send: {Yaw}, {Pitch}, {detect_success}")
+
+                hex_Yaw, hex_Pitch, hex_checksum = decimalToHexSerial(
+                    Yaw, Pitch)
+
+                if ser is not None: # send data to STM32
+                    send_data(ser, hex_Yaw, hex_Pitch, hex_checksum,detect_success) # send data to STM32 using the serial port and the send_data function from UART_UTIL.py
 
             else:
 
@@ -826,12 +814,11 @@ def main(camera: CameraSource, target_color: TargetColor):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
             # send failure data(send 0 degree to make gimbal stop)
             if ser is not None:
-                send_data(ser, '00', '00', '00')
+                hex_Yaw, hex_Pitch, hex_checksum=decimalToHexSerial(0, 0)
+                send_data(ser, hex_Yaw, hex_Pitch, hex_checksum,detect_success) # send data to STM32 using the serial port and the send_data function from UART_UTIL.py
 
-            # real Yaw time line
-            # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
 
-        cv2.circle(frame, (640, 360), 2, (255, 255, 255), -1)
+        cv2.circle(frame, (720, 540), 2, (255, 255, 255), -1)
         cv2.putText(frame, 'Depth: ', (20, 20),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
         cv2.putText(frame, 'Yaw: ', (20, 50),
@@ -844,14 +831,10 @@ def main(camera: CameraSource, target_color: TargetColor):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
 
-        # real Yaw time line
-        # cv2.line(frame, (640, 0), (640, 720), (255, 0, 255), 2)
-        #
+
         cv2.imshow("original", frame)
-        # cv2.imshow("track_init_frame", track_init_frame)
         cv2.waitKey(1)
 
-        # print(tvec, Yaw, Pitch)
         endtime = time.time()
         fps = 1 / (endtime - startTime)
         # print(fps)
@@ -879,7 +862,7 @@ if __name__ == "__main__":
     num = 0  # for collecting dataset, pictures' names
 
     # choose camera params
-    camera = CameraSource(camera_params['HIK MV-CS016-10UC(A)_ipad'], args.target_color.value,
+    camera = CameraSource(camera_params['HIK MV-CS016-10UC General'], args.target_color.value,
                           recording_source=args.recording_source, recording_dest=args.recording_dest)
     active_cam_config = camera.active_cam_config
     main(camera, args.target_color)
