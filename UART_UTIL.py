@@ -8,7 +8,7 @@ import re
 
 
 # Angles are in Byte Format
-def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll):
+def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sumAll): # this function is called in ArmorDetect_D435i.py
 
     ## ! Explaination of send_data function
     ## ser is the serial object
@@ -45,7 +45,7 @@ def send_data(ser, hex_int_Pitch, hex_deci_Pitch, hex_int_Yaw, hex_deci_Yaw, sum
     ser.write(packet) # Send the packet to the IMU
 
 
-def get_imu(ser):
+def get_imu(ser): # this function is called in ArmorDetect_D435i.py
 
     ## ! Explaination of get_imu function
     ## ser is the serial object
