@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 import serial
-from UART_UTIL import send_data, get_imu
+from UART_UTIL import send_data, get_imu # Import the send_data and get_imu functions from UART_UTIL.py
 from camera_source import CameraSource
 from kinematic_prediction import poly_predict
 
@@ -798,9 +798,8 @@ def main(camera: CameraSource, target_color: TargetColor):
                 hex_Yaw, hex_Pitch, hex_checksum = decimalToHexSerial(
                     Yaw, Pitch)
 
-                if ser is not None:
-                    send_data(
-                        ser, hex_Yaw, hex_Pitch, hex_checksum,detect_success)
+                if ser is not None: # send data to STM32
+                    send_data(ser, hex_Yaw, hex_Pitch, hex_checksum,detect_success) # send data to STM32 using the serial port and the send_data function from UART_UTIL.py
 
             else:
 
@@ -814,7 +813,7 @@ def main(camera: CameraSource, target_color: TargetColor):
             # send failure data(send 0 degree to make gimbal stop)
             if ser is not None:
                 hex_Yaw, hex_Pitch, hex_checksum=decimalToHexSerial(0, 0)
-                send_data(ser, hex_Yaw, hex_Pitch, hex_checksum,detect_success)
+                send_data(ser, hex_Yaw, hex_Pitch, hex_checksum,detect_success) # send data to STM32 using the serial port and the send_data function from UART_UTIL.py
 
 
         cv2.circle(frame, (720, 540), 2, (255, 255, 255), -1)
