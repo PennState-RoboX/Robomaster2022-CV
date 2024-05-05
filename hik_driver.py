@@ -11,6 +11,14 @@ import importlib
 
 # CameraParams_const = importlib.import_module("MVS.Samples.64.Python.MvImport.MvCameraControl_class")
 
+import platform
+sys.path.append("/home/robox/Robomaster2022-CV/MVS/Samples/64/Python/M1vImport")
+
+if platform.machine() == 'x86_64':
+    from MvCameraControl_class import *
+else:
+    from MvCameraControl_class import *
+g_bExit = False
 
 # from MVS.Samples.64.Python.MvImport.MvCameraControl_class import *
 sys.path.append("MVS/Samples/64/Python/MvImport")
