@@ -14,7 +14,7 @@ from MVS.Samples.aarch64.Python.MvImport.PixelType_const import *
 from MVS.Samples.aarch64.Python.MvImport.PixelType_header import *
 
 MvCamCtrldll = ctypes.cdll.LoadLibrary(
-    os.getenv('MVCAM_COMMON_RUNENV') + "/aarch64/libMvCameraControl.so")
+    os.getenv('MVCAM_COMMON_RUNENV') + "/64/libMvCameraControl.so")
 
 # 用于回调函数传入相机实例
 
