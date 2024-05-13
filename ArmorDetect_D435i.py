@@ -8,15 +8,11 @@ import serial
 from UART_UTIL import send_data, get_imu
 from camera_source import CameraSource
 from kinematic_prediction import poly_predict
-
 import argparse
 import logging
 import time
 from camera_params import camera_params, DepthSource
-from KalmanFilterClass import KalmanFilter
 from Target import Target
-#from sort import *
-
 import struct
 
 active_cam_config = None
@@ -836,7 +832,7 @@ def main(camera: CameraSource, target_color: TargetColor):
 
         endtime = time.time()
         fps = 1 / (endtime - startTime)
-        # print(fps)
+        print(fps)
 
 
 if __name__ == "__main__":
