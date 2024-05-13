@@ -872,4 +872,4 @@ if __name__ == "__main__":
                           recording_source=args.recording_source, recording_dest=args.recording_dest)
     
     active_cam_config = camera.active_cam_config
-    main(camera, args.target_color, args.video_stream)
+    main(camera, args.target_color, args.show_stream)
