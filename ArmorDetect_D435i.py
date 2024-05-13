@@ -551,7 +551,7 @@ def decimalToHexSerial(Yaw, Pitch):
     return hex_Yaw, hex_Pitch, hex_checksum
      
 
-def main(camera: CameraSource, target_color: TargetColor):
+def main(camera: CameraSource, target_color: TargetColor, show_stream: str):
     """
     Important commit updates: umature pred-imu; 50 deg limit; HSV red adj; get_imu; MVS arch rebuild ---- Shiao
     """
@@ -826,9 +826,12 @@ def main(camera: CameraSource, target_color: TargetColor):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
 
+        if show_stream == 'YES':
+            cv2.imshow("original", frame)
+            cv2.waitKey(1)
+        else:
+            pass
 
-        cv2.imshow("original", frame)
-        cv2.waitKey(1)
 
         endtime = time.time()
         fps = 1 / (endtime - startTime)
@@ -846,6 +849,10 @@ if __name__ == "__main__":
                         help='Path to record camera video to (MP4 format)')
     parser.add_argument('--debug', action='store_true',
                         help='Show intermediate results and debug output')
+    parser.add_argument('--show-stream', type=str, choices=['YES', 'NO'], default='NO',
+                        help='Display the camera stream (YES or NO)')
+
+
     args = parser.parse_args()
 
     # set up logger
@@ -859,5 +866,6 @@ if __name__ == "__main__":
     # choose camera params
     camera = CameraSource(camera_params['HIK MV-CS016-10UC General'], args.target_color.value,
                           recording_source=args.recording_source, recording_dest=args.recording_dest)
+    
     active_cam_config = camera.active_cam_config
-    main(camera, args.target_color)
+    main(camera, args.target_color, args.show_stream)
