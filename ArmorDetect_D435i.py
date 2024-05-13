@@ -830,7 +830,7 @@ def main(camera: CameraSource, target_color: TargetColor, show_stream: str):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
 
-        if show_stream == 'YES:'
+        if show_stream == 'YES':
             cv2.imshow("original", frame)
             cv2.waitKey(1)
         else:
