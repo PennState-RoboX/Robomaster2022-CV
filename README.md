@@ -95,7 +95,5 @@ MVS/                                                # Tools for hikvision camera
 
 ```
 
-HaHa
-
 
 
