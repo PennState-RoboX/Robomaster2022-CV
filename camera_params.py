@@ -6,6 +6,9 @@ class DepthSource(enum.IntEnum):
     STEREO = 0
     PNP = 1
 
+x_offset = 0  # No change in horizontal direction
+y_offset = -10  # Adjust this value to shift the view upwards
+
 
 camera_params = {
     'Generic Webcam': {
@@ -46,8 +49,8 @@ camera_params = {
         'capture_res': (1280, 720),
         'depth_source': DepthSource.PNP,
         'fov': (48.33, 30),
-        'cx': 687.434,
-        'cy': 571.391,
+        'cx': 687.434 + x_offset,
+        'cy': 571.391 + y_offset,
         'fx': 2414.2,
         'fy': 2414.3,
         'k1': -0.0307,
@@ -63,8 +66,8 @@ camera_params = {
         'capture_res': (1280, 720),
         'depth_source': DepthSource.PNP,
         'fov': (48.33, 30),
-        'cx': 752.736,
-        'cy': 580.63,
+        'cx': 752.736 + x_offset,
+        'cy': 580.63 + y_offset,
         'fx': 2360.1,
         'fy': 2360.9,
         'k1': -0.0262,
@@ -80,8 +83,8 @@ camera_params = {
         'capture_res': (1280, 720),
         'depth_source': DepthSource.PNP,
         'fov': (48.33, 30),
-        'cx': 752.678,
-        'cy': 566.916,
+        'cx': 752.678 + x_offset,
+        'cy': 566.916 + y_offset,
         'fx': 2428.8,
         'fy': 2428.2,
         'k1': 0.0007347,
@@ -97,8 +100,8 @@ camera_params = {
         'capture_res': (1280, 720),
         'depth_source': DepthSource.PNP,
         'fov': (48.33, 30),
-        'cx': 640,
-        'cy': 360,
+        'cx': 640 + x_offset,
+        'cy': 360 + y_offset,
         'fx': 3028.8,
         'fy': 3028.2,
         'k1': 0.0007347,
