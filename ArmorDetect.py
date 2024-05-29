@@ -242,10 +242,10 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
         
         # Get Depth value
         meanDVal = np.linalg.norm(tvec[:, 0])
-        Yaw = np.arctan(tvec[(0,0)]/ tvec[(2,0)]) / 2 / 3.1415926535897932 * 360
-        Pitch = -(np.arctan(tvec[(1, 0)] / tvec[(2, 0)]) / 2 / 3.1415926535897932 * 360)
-
-        
+        offsetY = 1 # offset for Yaw
+        Yaw = np.arctan(tvec[(0,0)]/ tvec[(2,0)]) / 2 / 3.1415926535897932 * 360 - offsetY
+        offsetP = -8 # offset for Pitch
+        Pitch = -(np.arctan(tvec[(1, 0)] / tvec[(2, 0)]) / 2 / 3.1415926535897932 * 360) - offsetP
 
 
 
