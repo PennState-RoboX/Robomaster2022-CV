@@ -242,10 +242,10 @@ def get_3d_target_location(imgPoints, frame, depth_frame):
         
         # Get Depth value
         meanDVal = np.linalg.norm(tvec[:, 0])
-        Yaw = np.arctan(tvec[(0,0)]/ tvec[(2,0)]) / 2 / 3.1415926535897932 * 360
-        Pitch = -(np.arctan(tvec[(1, 0)] / tvec[(2, 0)]) / 2 / 3.1415926535897932 * 360)
-
-        
+        offsetY = 1 # offset for Yaw
+        Yaw = np.arctan(tvec[(0,0)]/ tvec[(2,0)]) / 2 / 3.1415926535897932 * 360 - offsetY
+        offsetP = -8 # offset for Pitch
+        Pitch = -(np.arctan(tvec[(1, 0)] / tvec[(2, 0)]) / 2 / 3.1415926535897932 * 360) - offsetP
 
 
 
@@ -550,6 +550,15 @@ def decimalToHexSerial(Yaw, Pitch):
     # build hexadecimal data list
     return hex_Yaw, hex_Pitch, hex_checksum
      
+def draw_crosshair(frame):
+    height, width = frame.shape[:2]
+    center_x, center_y = width // 2, height // 2
+    color = (0, 255, 0)  # Green color
+    thickness = 2
+    size = 20
+    cv2.line(frame, (center_x, center_y - size), (center_x, center_y + size), color, thickness)
+    cv2.line(frame, (center_x - size, center_y), (center_x + size, center_y), color, thickness)
+    return frame
 
 def main(camera: CameraSource, target_color: TargetColor, show_stream: str):
     """
@@ -605,6 +614,9 @@ def main(camera: CameraSource, target_color: TargetColor, show_stream: str):
             updateParamsFromTrackbars("CV Parameters", cv_config)
 
         color_image, depth_image = camera.get_frames()
+        
+        # color_image with crosshair
+        color_image = draw_crosshair(color_image)
         
         """Do detection"""
         binary, frame = read_morphology(color_image, cv_config)
