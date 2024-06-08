@@ -94,7 +94,7 @@ camera_params = {
         # all of HIK camera's params (and units) are adjustable in the MVS platform
         'frame_rate': 249,
         'exposure': {'red': 4000.0, 'blue': 5000.0},
-        'capture_res': (1280, 720),
+        'capture_res': (1440, 1080),
         'depth_source': DepthSource.PNP,
         'fov': (48.33, 30),
         'cx': 640,
