@@ -535,18 +535,18 @@ def float_to_hex(f):
     return ''.join([f'{byte:02x}' for byte in struct.pack('>f', f)])
 
 def decimalToHexSerial(Yaw, Pitch):
-    # å°†Yawå’ŒPitchè½¬æ¢ä¸ºIEEE 754æ ‡å‡†çš„å››å­—èŠ‚æµ®ç‚¹æ•°è¡¨ç¤ºï¼Œå¹¶è½¬æ¢ä¸ºåå…­è¿›åˆ¶å­—ç¬¦ä¸²
+    # ½«YawºÍPitch×ª»»ÎªIEEE 754±ê×¼µÄËÄ×Ö½Ú¸¡µãÊı±íÊ¾£¬²¢×ª»»ÎªÊ®Áù½øÖÆ×Ö·û´®
     # turn Yaw and Pitch to IEEE 754 standard four-byte floating point representation and convert to hexadecimal string
     hex_Yaw = float_to_hex(Yaw)
     hex_Pitch = float_to_hex(Pitch)
 
-    # è®¡ç®—æ ¡éªŒå’Œ
+    # ¼ÆËãĞ£ÑéºÍ
     # calculate checksum
     bytes_for_checksum = struct.pack('>ff', Yaw, Pitch) # only checked Yaw & Pitch data so far
     checksum = sum(bytes_for_checksum) % 256
     hex_checksum = f'{checksum:02x}'
 
-    # æ„å»ºåå…­è¿›åˆ¶æ•°æ®åˆ—è¡¨
+    # ¹¹½¨Ê®Áù½øÖÆÊı¾İÁĞ±í
     # build hexadecimal data list
     return hex_Yaw, hex_Pitch, hex_checksum
      
@@ -599,9 +599,10 @@ def main(camera: CameraSource, target_color: TargetColor, show_stream: str):
     # Try to Open serial port for data transmission to STM32, if not found, continue without it
     try:
         ser = serial.Serial('/dev/ttyUSB0', 115200)
-    except:
+    except Exception as e:
         ser = None
-        print("Serial port not found, continuing without it")
+        print(f"Failed to open serial port: {str(e)}")
+
 
     detect_success = False
     track_success = False
