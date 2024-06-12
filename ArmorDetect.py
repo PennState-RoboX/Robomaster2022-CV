@@ -535,18 +535,18 @@ def float_to_hex(f):
     return ''.join([f'{byte:02x}' for byte in struct.pack('>f', f)])
 
 def decimalToHexSerial(Yaw, Pitch):
-    # ½«YawºÍPitch×ª»»ÎªIEEE 754±ê×¼µÄËÄ×Ö½Ú¸¡µãÊý±íÊ¾£¬²¢×ª»»ÎªÊ®Áù½øÖÆ×Ö·û´®
+    # ï¿½ï¿½Yawï¿½ï¿½Pitch×ªï¿½ï¿½ÎªIEEE 754ï¿½ï¿½×¼ï¿½ï¿½ï¿½ï¿½ï¿½Ö½Ú¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ÎªÊ®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½
     # turn Yaw and Pitch to IEEE 754 standard four-byte floating point representation and convert to hexadecimal string
     hex_Yaw = float_to_hex(Yaw)
     hex_Pitch = float_to_hex(Pitch)
 
-    # ¼ÆËãÐ£ÑéºÍ
+    # ï¿½ï¿½ï¿½ï¿½Ð£ï¿½ï¿½ï¿½
     # calculate checksum
     bytes_for_checksum = struct.pack('>ff', Yaw, Pitch) # only checked Yaw & Pitch data so far
     checksum = sum(bytes_for_checksum) % 256
     hex_checksum = f'{checksum:02x}'
 
-    # ¹¹½¨Ê®Áù½øÖÆÊý¾ÝÁÐ±í
+    # ï¿½ï¿½ï¿½ï¿½Ê®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð±ï¿½
     # build hexadecimal data list
     return hex_Yaw, hex_Pitch, hex_checksum
      
@@ -839,7 +839,7 @@ def main(camera: CameraSource, target_color: TargetColor, show_stream: str):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, [0, 255, 0])
 
 
-        if show_stream == 'YES':
+        if show_stream == 'YES' or 'yes':
             cv2.imshow("original", frame)
             cv2.waitKey(1)
         else:
@@ -862,7 +862,7 @@ if __name__ == "__main__":
                         help='Path to record camera video to (MP4 format)')
     parser.add_argument('--debug', action='store_true',
                         help='Show intermediate results and debug output')
-    parser.add_argument('--show-stream', type=str, choices=['YES', 'NO'], default='NO',
+    parser.add_argument('--show-stream', type=str, choices=['YES', 'NO'], default='NO' or 'no',
                         help='Display the camera stream (YES or NO)')
 
 

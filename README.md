@@ -29,14 +29,14 @@ https://www.hikvision.com/us-en/support/download/sdk/
 Run the project in the default mode (video stream off):
 
 ```bash
-python3 ArmorDetect.py --target-color [red/blue] --show-stream OFF
+python3 ArmorDetect.py --target-color [red/blue] --show-stream NO
 ```
 
 ### Testing with video stream
 Run the project with video stream on/off
 
 ```bash
-python3 ArmorDetect.py --target-color [red/blue] --show-stream ON/OFF
+python3 ArmorDetect.py --target-color [red/blue] --show-stream YES/NO
 ```
 
 ### **Debug Mode**
@@ -45,7 +45,7 @@ Run the project with additional debug output
 You can adjust the color threshold to detect the Armor board in different light settings. 
 
 ```bash
-python3 ArmorDetect.py --debug --target-color [re/blue] --show-stream ON
+python3 ArmorDetect.py --debug --target-color [red/blue] --show-stream YES
 ```
 
 ### **Recording Mode**
@@ -53,7 +53,7 @@ python3 ArmorDetect.py --debug --target-color [re/blue] --show-stream ON
 The project supports recording video for testing:
 
 ```bash
-python3 ArmorDetect.py --target-color [red/blue] --recording-dest [Path for output video] --show-stream ON
+python3 ArmorDetect.py --target-color [red/blue] --recording-dest [Path for output video] --show-stream YES
 ```
 
 ### Test with Recording
@@ -61,7 +61,7 @@ python3 ArmorDetect.py --target-color [red/blue] --recording-dest [Path for outp
 You can load existing videos (.mp4) to test the project:
 
 ```
-python3 ArmorDetect.py --target-color [red/blue] --recording-source [Path for input video] --show-stream ON
+python3 ArmorDetect.py --target-color [red/blue] --recording-source [Path for input video] --show-stream YES
 ```
 
 
